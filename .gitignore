@@ -19,6 +19,8 @@ terraform/terraform.tfvars
 *.sql.gz
 *.tar.gz
 *.backup
+# Исключения: SQL скрипты в scripts/ можно коммитить
+!scripts/*.sql
 
 # Логи
 *.log
