@@ -6,7 +6,22 @@
 
 ### 1. `telegram-hello-bot.json`
 **Описание:** Простой Telegram бот, который отвечает "Здарова!" на любое сообщение  
-**Требуемые credentials:** Telegram Bot API Token
+**Требуемые credentials:** Telegram Bot API Token  
+**Инструкция:** [SETUP_TELEGRAM_BOT.md](SETUP_TELEGRAM_BOT.md)
+
+### 2. `telegram-ai-bot.json` ⭐ NEW!
+**Описание:** AI-powered Telegram бот с Google Gemini 2.0 Flash  
+**Возможности:**
+- Умный диалог на русском языке
+- Бесплатный tier: 1500 запросов/день
+- Настраиваемая личность бота
+- Поддержка Markdown в ответах
+
+**Требуемые credentials:**
+- Telegram Bot API Token
+- Google Gemini API Key
+
+**Инструкция:** [SETUP_GEMINI.md](SETUP_GEMINI.md)
 
 ---
 

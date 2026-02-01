@@ -5,21 +5,22 @@
       "parameters": {
         "updates": [
           "message"
-        ]
+        ],
+        "additionalFields": {}
       },
-      "id": "telegram-trigger-node",
+      "id": "13b726e8-bfd7-4a7e-aca8-d1828cf1c93d",
       "name": "Telegram Trigger",
       "type": "n8n-nodes-base.telegramTrigger",
       "typeVersion": 1.1,
       "position": [
-        240,
-        300
+        -384,
+        -192
       ],
       "webhookId": "telegram-test-bot",
       "credentials": {
         "telegramApi": {
-          "id": "telegram-bot-credentials",
-          "name": "Telegram Test Bot"
+          "id": "hBOa4F5MLL2eW2R6",
+          "name": "MandalaBot"
         }
       }
     },
@@ -29,22 +30,24 @@
         "text": "Здарова!",
         "additionalFields": {}
       },
-      "id": "telegram-send-message-node",
+      "id": "b5374a77-38af-4916-9f55-89e1020f8270",
       "name": "Send Reply",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.1,
       "position": [
-        460,
-        300
+        -160,
+        -192
       ],
+      "webhookId": "bdf17f55-4e28-49a8-9f61-5d167917696b",
       "credentials": {
         "telegramApi": {
-          "id": "telegram-bot-credentials",
-          "name": "Telegram Test Bot"
+          "id": "hBOa4F5MLL2eW2R6",
+          "name": "Telegram account"
         }
       }
     }
   ],
+  "pinData": {},
   "connections": {
     "Telegram Trigger": {
       "main": [
@@ -58,26 +61,29 @@
       ]
     }
   },
+  "active": false,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "availableInMCP": false
   },
-  "staticData": null,
+  "versionId": "cd56b3e9-c6e1-4f98-a32b-2f750a65febe",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "53814074f06b7b5c9f98d5e8e8070a4c29be85d0115b2eb5224f97008ecdcc35"
+  },
+  "id": "GElIhkrO8sVFBv23PqNAh",
   "tags": [
     {
       "name": "telegram",
-      "id": "telegram-tag"
+      "id": "4ml9Imp2M8SzlRty",
+      "updatedAt": "2026-02-01T14:14:31.059Z",
+      "createdAt": "2026-02-01T14:14:31.059Z"
     },
     {
       "name": "test",
-      "id": "test-tag"
+      "id": "C9yP5WYS4hoTLU2M",
+      "updatedAt": "2026-02-01T14:14:31.042Z",
+      "createdAt": "2026-02-01T14:14:31.042Z"
     }
-  ],
-  "meta": {
-    "templateCredsSetupCompleted": false,
-    "instanceId": "n8n-yandex-cloud"
-  },
-  "pinData": {},
-  "versionId": "1",
-  "triggerCount": 0,
-  "active": false
+  ]
 }
