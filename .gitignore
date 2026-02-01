@@ -44,6 +44,7 @@ Thumbs.db
 *.json
 !package.json
 !package-lock.json
+!workflows/*.json
 
 # SSH ключи
 *.pem
@@ -55,3 +56,7 @@ node_modules/
 
 # Тестовые файлы
 test-script.sh
+
+# Workflows с токенами (если есть)
+workflows/*-with-tokens.json
+workflows/*.local.json
