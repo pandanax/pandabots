@@ -17,7 +17,8 @@ https://n8n.mandala-app.online
 
 ### SSH на сервер
 ```bash
-ssh ubuntu@84.252.137.46
+# SSH доступ настроен, данные для подключения в .local/quick-reference.md
+ssh ubuntu@<server-ip>
 ```
 
 ### Управление
@@ -62,7 +63,7 @@ docker compose logs -f n8n     # Логи
 ## 🏗️ Архитектура
 
 ```
-Internet → Yandex Cloud DNS → 84.252.137.46
+Internet → Yandex Cloud DNS → n8n.mandala-app.online
                                     ↓
                         [Yandex Cloud Security Group]
                                     ↓
@@ -179,7 +180,8 @@ Internet → Yandex Cloud DNS → 84.252.137.46
 
 ### n8n не отвечает
 ```bash
-ssh ubuntu@84.252.137.46
+# Подключись к серверу (данные в .local/quick-reference.md)
+ssh ubuntu@<server-ip>
 cd /opt/n8n
 docker compose ps
 docker compose logs n8n
