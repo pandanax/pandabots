@@ -9,19 +9,21 @@
 **Требуемые credentials:** Telegram Bot API Token  
 **Инструкция:** [SETUP_TELEGRAM_BOT.md](SETUP_TELEGRAM_BOT.md)
 
-### 2. `telegram-ai-bot.json` ⭐ NEW!
-**Описание:** AI-powered Telegram бот с Google Gemini 2.0 Flash  
+### 2. `telegram-deepseek-bot.json` ⭐ NEW!
+**Описание:** AI-powered Telegram бот с DeepSeek V3  
 **Возможности:**
 - Умный диалог на русском языке
-- Бесплатный tier: 1500 запросов/день
+- ✅ **Работает из России** (нет блокировок)
+- Очень дешево: $0.27/$1.10 за 1M токенов
+- Качество близко к GPT-4
 - Настраиваемая личность бота
 - Поддержка Markdown в ответах
 
 **Требуемые credentials:**
 - Telegram Bot API Token
-- Google Gemini API Key
+- DeepSeek API Key
 
-**Инструкция:** [SETUP_GEMINI.md](SETUP_GEMINI.md)
+**Инструкция:** [SETUP_DEEPSEEK.md](SETUP_DEEPSEEK.md)
 
 ---
 

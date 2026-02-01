@@ -1,5 +1,5 @@
 {
-  "name": "Telegram AI Bot (Gemini)",
+  "name": "Telegram AI Bot (DeepSeek)",
   "nodes": [
     {
       "parameters": {
@@ -15,7 +15,7 @@
         240,
         300
       ],
-      "webhookId": "telegram-ai-bot",
+      "webhookId": "telegram-deepseek-bot",
       "credentials": {
         "telegramApi": {
           "id": "telegram-bot-credentials",
@@ -60,15 +60,16 @@
     },
     {
       "parameters": {
-        "model": "gemini-2.0-flash-exp",
+        "model": "deepseek-chat",
         "options": {
           "temperature": 0.7,
-          "maxOutputTokens": 1000
+          "maxTokens": 1000,
+          "baseURL": "https://api.deepseek.com"
         },
         "messages": {
           "values": [
             {
-              "content": "Ты дружелюбный AI ассистент в Telegram боте. Отвечай на русском языке, будь полезным и приветливым."
+              "content": "Ты дружелюбный AI ассистент в Telegram боте. Отвечай на русском языке, будь полезным и приветливым. Давай конкретные и понятные ответы."
             },
             {
               "role": "user",
@@ -77,18 +78,18 @@
           ]
         }
       },
-      "id": "gemini-ai",
-      "name": "Google Gemini AI",
-      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "id": "deepseek-ai",
+      "name": "DeepSeek AI",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1,
       "position": [
         680,
         300
       ],
       "credentials": {
-        "googleGeminiOAuth2Api": {
-          "id": "google-gemini-credentials",
-          "name": "Google Gemini API"
+        "openAiApi": {
+          "id": "deepseek-credentials",
+          "name": "DeepSeek API"
         }
       }
     },
@@ -132,14 +133,14 @@
       "main": [
         [
           {
-            "node": "Google Gemini AI",
+            "node": "DeepSeek AI",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Google Gemini AI": {
+    "DeepSeek AI": {
       "main": [
         [
           {
@@ -165,8 +166,8 @@
       "id": "ai-tag"
     },
     {
-      "name": "gemini",
-      "id": "gemini-tag"
+      "name": "deepseek",
+      "id": "deepseek-tag"
     }
   ],
   "meta": {
