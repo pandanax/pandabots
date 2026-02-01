@@ -1,0 +1,15 @@
+# Environment variables
+.env
+
+# Logs
+*.log
+nginx/logs/
+
+# Backups
+*.sql
+*.tar.gz
+*.backup
+
+# Temporary files
+*.tmp
+.DS_Store

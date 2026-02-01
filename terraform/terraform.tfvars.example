@@ -1,0 +1,24 @@
+# Yandex Cloud Configuration
+service_account_key_file = "~/.yc/n8n-sa-key.json"
+cloud_id                 = "b1gtthlctc244316ambs"
+folder_id                = "b1gmrr5e6bncvoin732o"
+zone                     = "ru-central1-b"
+
+# VM Configuration
+vm_name      = "n8n-server"
+vm_platform  = "standard-v3"
+vm_cores     = 2
+vm_memory    = 4
+vm_disk_size = 30
+vm_disk_type = "network-ssd"
+
+# SSH Configuration
+ssh_user             = "ubuntu"
+ssh_public_key_path  = "~/.ssh/id_rsa.pub"
+
+# Security
+# Replace with your actual IP address (format: "1.2.3.4/32")
+allowed_ssh_ip = "YOUR_IP_ADDRESS/32"
+
+# Domain
+domain_name = "n8n.mandala-app.online"

@@ -1,0 +1,57 @@
+# Переменные окружения и секреты
+.env
+*.env
+!.env.example
+
+# Локальная конфигурация
+.local/
+
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/terraform.tfvars
+!terraform/terraform.tfvars.example
+
+# Бекапы
+*.sql
+*.sql.gz
+*.tar.gz
+*.backup
+
+# Логи
+*.log
+logs/
+
+# Временные файлы
+*.tmp
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Yandex Cloud
+.yc/
+*.json
+!package.json
+!package-lock.json
+
+# SSH ключи
+*.pem
+*.key
+!*.pub
+
+# Node modules (если будут)
+node_modules/
+
+# Тестовые файлы
+test-script.sh

@@ -1,0 +1,75 @@
+#cloud-config
+
+users:
+  - name: ${ssh_user}
+    groups: sudo, docker
+    shell: /bin/bash
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    ssh-authorized-keys:
+      - ${ssh_public_key}
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gnupg
+  - lsb-release
+  - ufw
+  - fail2ban
+
+runcmd:
+  # Install Docker
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+  - systemctl enable docker
+  - systemctl start docker
+  - usermod -aG docker ${ssh_user}
+  
+  # Install Docker Compose standalone
+  - curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+  - chmod +x /usr/local/bin/docker-compose
+  
+  # Configure UFW firewall
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow 22/tcp
+  - ufw allow 80/tcp
+  - ufw allow 443/tcp
+  - echo "y" | ufw enable
+  
+  # Configure fail2ban
+  - systemctl enable fail2ban
+  - systemctl start fail2ban
+  
+  # Create application directory
+  - mkdir -p /opt/n8n
+  - chown ${ssh_user}:${ssh_user} /opt/n8n
+  
+  # Set domain name as environment variable
+  - echo "DOMAIN_NAME=${domain_name}" >> /etc/environment
+
+write_files:
+  - path: /opt/n8n/.env.example
+    content: |
+      # PostgreSQL
+      POSTGRES_USER=n8n
+      POSTGRES_PASSWORD=CHANGE_ME_TO_SECURE_PASSWORD
+      POSTGRES_DB=n8n
+      
+      # n8n
+      N8N_HOST=${domain_name}
+      N8N_PROTOCOL=https
+      WEBHOOK_URL=https://${domain_name}/
+      GENERIC_TIMEZONE=Europe/Moscow
+      
+      # Optional: n8n basic auth (comment out after first setup)
+      # N8N_BASIC_AUTH_ACTIVE=true
+      # N8N_BASIC_AUTH_USER=admin
+      # N8N_BASIC_AUTH_PASSWORD=CHANGE_ME
+
+final_message: "Cloud-init completed. Docker and Docker Compose installed. Server ready for n8n deployment."
