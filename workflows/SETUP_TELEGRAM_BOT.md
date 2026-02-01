@@ -99,7 +99,7 @@ Settings → Credentials → Telegram Test Bot → Test
 ### Проверка 5: Проверить webhook вручную (опционально)
 ```bash
 # Проверить какой webhook установлен у бота
-curl "https://api.telegram.org/bot<ВАШ_ТОКЕН_ОТ_BOTFATHER>/getWebhookInfo"
+curl "https://api.telegram.org/bot<ВАШ_ТОКЕН>/getWebhookInfo"
 
 # Должно вернуть:
 {
@@ -168,5 +168,5 @@ curl "https://api.telegram.org/bot<ВАШ_ТОКЕН_ОТ_BOTFATHER>/getWebhookI
 
 ---
 
-**Токен бота:** `<ВАШ_ТОКЕН_ОТ_BOTFATHER>`  
-⚠️ Храни токен в безопасности! Не публикуй в открытом доступе.
+⚠️ **Получи токен у @BotFather в Telegram**  
+⚠️ Храни токен в безопасности! Не публикуй в открытом доступе и в git!
