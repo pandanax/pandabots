@@ -122,6 +122,10 @@ Internet → Yandex Cloud DNS → n8n.mandala-app.online
 ├── STATUS.md            # Текущий статус
 ├── AI_AGENT_GUIDE.md    # Для AI агентов
 │
+├── workflows/           # 🤖 Готовые n8n workflow
+│   ├── telegram-hello-bot.json    # Пример: Telegram бот
+│   └── SETUP_TELEGRAM_BOT.md      # Инструкция
+│
 ├── docs/                # 📚 Вся документация
 │   ├── 01-05-*.md       # История развертывания
 │   ├── guides/          # Гайды и инструкции
@@ -147,7 +151,9 @@ Internet → Yandex Cloud DNS → n8n.mandala-app.online
 ### Использование n8n:
 1. Открой https://n8n.mandala-app.online
 2. Создай admin аккаунт
-3. Начинай автоматизировать!
+3. **Попробуй готовые workflow из `workflows/`!**
+   - [Telegram бот](workflows/telegram-hello-bot.json) - простой пример
+   - Инструкции в [workflows/SETUP_TELEGRAM_BOT.md](workflows/SETUP_TELEGRAM_BOT.md)
 
 ### Для разработки:
 - Читай [docs/README.md](docs/README.md)
