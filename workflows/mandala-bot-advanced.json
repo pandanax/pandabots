@@ -1,0 +1,329 @@
+{
+  "name": "Mandala Bot Advanced (с историей и RAG)",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message"]
+      },
+      "id": "telegram-trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 400],
+      "webhookId": "mandala-bot-advanced",
+      "credentials": {
+        "telegramApi": {
+          "id": "hBOa4F5MLL2eW2R6",
+          "name": "MandalaBot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "user-id",
+              "name": "userId",
+              "value": "={{ $json.message.from.id }}",
+              "type": "number"
+            },
+            {
+              "id": "chat-id",
+              "name": "chatId",
+              "value": "={{ $json.message.chat.id }}",
+              "type": "number"
+            },
+            {
+              "id": "user-message",
+              "name": "userMessage",
+              "value": "={{ $json.message.text }}",
+              "type": "string"
+            },
+            {
+              "id": "username",
+              "name": "userName",
+              "value": "={{ $json.message.from.first_name || 'Клиент' }}",
+              "type": "string"
+            },
+            {
+              "id": "timestamp",
+              "name": "timestamp",
+              "value": "={{ new Date().toISOString() }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "extract-user-data",
+      "name": "Extract User Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT role, content, created_at FROM chat_history WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10",
+        "options": {
+          "queryParameters": "={{ JSON.stringify([$('Extract User Data').item.json.userId]) }}"
+        }
+      },
+      "id": "load-history",
+      "name": "Load Chat History",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [680, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ $json.history || '[]' }}"
+      },
+      "id": "format-history",
+      "name": "Format History",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "knowledge-base",
+              "name": "knowledgeBase",
+              "value": "={{ $('Read Knowledge Base').item.json.content }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "load-knowledge",
+      "name": "Load RAG Knowledge",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [680, 500]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "binaryPropertyName": "data",
+        "options": {
+          "dataPropertyName": "content"
+        }
+      },
+      "id": "read-knowledge-base",
+      "name": "Read Knowledge Base",
+      "type": "n8n-nodes-base.readBinaryFile",
+      "typeVersion": 1,
+      "position": [460, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "const userData = $('Extract User Data').first().json;\nconst history = $('Format History').first().json.history || [];\nconst knowledge = $('Load RAG Knowledge').first().json.knowledgeBase;\n\n// Реверсируем историю (сначала старые сообщения)\nconst reversedHistory = history.reverse();\n\n// Формируем массив сообщений для DeepSeek\nconst messages = [\n  {\n    role: 'system',\n    content: `Ты специалист по созданию персональных мандал. \n\nТвоя задача:\n1. Выяснить какой тип мандалы хочет клиент (нумерологическая, астрологическая, природная, для медитации)\n2. Собрать необходимые данные:\n   - Дата рождения (обязательно для нумерологической мандалы)\n   - Имя (для усиления эффекта)\n   - Время и место рождения (если нужна астрологическая)\n   - Цель создания мандалы (медитация, исцеление, проявление намерений)\n3. Рассчитать мандалу по данным\n4. Выдать пример готовой мандалы и инструкции как рисовать самому\n\nБудь дружелюбным, задавай уточняющие вопросы, объясняй понятно.\nИспользуй знания из базы данных о мандалах.\n\n=== БАЗА ЗНАНИЙ О МАНДАЛАХ ===\n${knowledge}\n=== КОНЕЦ БАЗЫ ЗНАНИЙ ===\n\nОтвечай на русском языке, используй форматирование Markdown для красоты.`\n  }\n];\n\n// Добавляем историю\nreversedHistory.forEach(msg => {\n  messages.push({\n    role: msg.role,\n    content: msg.content\n  });\n});\n\n// Добавляем текущее сообщение\nmessages.push({\n  role: 'user',\n  content: userData.userMessage\n});\n\nreturn [\n  {\n    json: {\n      messages: messages,\n      userId: userData.userId,\n      chatId: userData.chatId,\n      userName: userData.userName,\n      userMessage: userData.userMessage,\n      timestamp: userData.timestamp\n    }\n  }\n];"
+      },
+      "id": "build-context",
+      "name": "Build AI Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "model": "deepseek-chat",
+        "options": {
+          "temperature": 0.8,
+          "maxTokens": 2000,
+          "baseURL": "https://api.deepseek.com"
+        },
+        "messages": "={{ $json.messages }}"
+      },
+      "id": "deepseek-ai",
+      "name": "DeepSeek AI",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [1340, 400],
+      "credentials": {
+        "openAiApi": {
+          "id": "deepseek-credentials",
+          "name": "DeepSeek API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO chat_history (user_id, role, content, created_at) VALUES ($1, $2, $3, $4), ($5, $6, $7, $8)",
+        "options": {
+          "queryParameters": "={{ JSON.stringify([$json.userId, 'user', $json.userMessage, $json.timestamp, $json.userId, 'assistant', $json.response, new Date().toISOString()]) }}"
+        }
+      },
+      "id": "save-history",
+      "name": "Save to History",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1560, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credentials",
+          "name": "PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.response }}",
+        "additionalFields": {
+          "parse_mode": "Markdown",
+          "reply_to_message_id": "={{ $('Telegram Trigger').item.json.message.message_id }}"
+        }
+      },
+      "id": "send-reply",
+      "name": "Send AI Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [1560, 500],
+      "credentials": {
+        "telegramApi": {
+          "id": "hBOa4F5MLL2eW2R6",
+          "name": "MandalaBot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract User Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Knowledge Base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract User Data": {
+      "main": [
+        [
+          {
+            "node": "Load Chat History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Chat History": {
+      "main": [
+        [
+          {
+            "node": "Format History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format History": {
+      "main": [
+        [
+          {
+            "node": "Build AI Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Knowledge Base": {
+      "main": [
+        [
+          {
+            "node": "Load RAG Knowledge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load RAG Knowledge": {
+      "main": [
+        [
+          {
+            "node": "Build AI Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build AI Context": {
+      "main": [
+        [
+          {
+            "node": "DeepSeek AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek AI": {
+      "main": [
+        [
+          {
+            "node": "Save to History",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send AI Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "mandala",
+      "id": "mandala-tag"
+    },
+    {
+      "name": "ai",
+      "id": "ai-tag"
+    },
+    {
+      "name": "rag",
+      "id": "rag-tag"
+    },
+    {
+      "name": "history",
+      "id": "history-tag"
+    }
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "active": false
+}
