@@ -123,11 +123,12 @@
       "position": [
         -1936,
         0
-      ]
+      ],
+      "inputs": 3
     },
     {
       "parameters": {
-        "jsCode": "// Получаем данные из Merge - он объединяет все в один item\nconst mergedItem = $input.first().json;\n\n// Merge объединяет объекты, поэтому все поля должны быть на верхнем уровне\nconst userId = mergedItem.userId;\nconst chatId = mergedItem.chatId;\nconst userMessage = mergedItem.userMessage;\nconst userName = mergedItem.userName;\nconst timestamp = mergedItem.timestamp;\nconst knowledge = mergedItem.knowledgeBase || 'База знаний не загружена';\nconst history = mergedItem.history || [];\n\n// Проверяем что данные пользователя найдены\nif (!userId || !userMessage) {\n  throw new Error('Не найдены данные пользователя. Merged data: ' + JSON.stringify(mergedItem, null, 2));\n}\n\n// Реверсируем историю (сначала старые сообщения)\nconst reversedHistory = Array.isArray(history) ? [...history].reverse() : [];\n\n// Формируем массив сообщений для DeepSeek\nconst messages = [\n  {\n    role: 'system',\n    content: `Ты профессиональный консультант по здоровому питанию и коррекции пищевого поведения.\n\nТвоя задача - помогать клиентам:\n1. Понять основы правильного питания и физиологии похудения\n2. Разработать индивидуальный план питания\n3. Скорректировать пищевое поведение\n4. Достичь целей по снижению веса безопасно и эффективно\n5. Развенчать мифы о диетах и похудении\n\nТы используешь только научно обоснованные методы:\n- Дробное питание (5-6 раз в день)\n- Умеренный дефицит калорий (без голодания)\n- Правильное распределение БЖУ\n- Учёт гликемического индекса\n- Поддержание высокого метаболизма\n\nБудь внимательным, задавай уточняющие вопросы:\n- Текущий вес, рост, возраст, пол\n- Целевой вес и сроки\n- Режим дня и физическая активность\n- Пищевые привычки и предпочтения\n- Противопоказания и заболевания\n\nОбъясняй понятно, с научным обоснованием, с терминами.\nМотивируй, поддерживай, помогай выстроить правильные привычки.\n\n=== НАУЧНАЯ БАЗА ЗНАНИЙ ===\n${knowledge}\n=== КОНЕЦ БАЗЫ ЗНАНИЙ ===\n\n⚠️ КРИТИЧЕСКИ ВАЖНО - ОГРАНИЧЕНИЯ TELEGRAM:\n- Telegram имеет лимит 4096 символов на сообщение Твой ответ должен быть КРАТКИМ и ЛАКОНИЧНЫМ (старайся укладываться в 2000 символов)\n- Говори по делу, без воды\n\n- Отвечай на русском языке\n- Структурируй ответ списками и короткими абзацами\n- Используй эмодзи\n- СТРОГО Используй ТОЛЬКО этот синтаксис для текста:  \n  1) Обычный текст\n  2) Жирный (2 звездочки) **текст**\n  3) Курсив (2 подчеркивания)  __текст__\n  4) Ссылки (квадратные и круглые скобки) [текст](ссылка)\n  5) Таблицы оборачивай в три обратных апострофа чтобы получить моноширинный текст\n`\n  }\n];\n\n// Добавляем историю (если есть)\nreversedHistory.forEach(msg => {\n  messages.push({\n    role: msg.role,\n    content: msg.content\n  });\n});\n\n// Добавляем текущее сообщение\nmessages.push({\n  role: 'user',\n  content: userMessage\n});\n\nreturn [\n  {\n    json: {\n      messages: messages,\n      userId: userId,\n      chatId: chatId,\n      userName: userName,\n      userMessage: userMessage,\n      timestamp: timestamp\n    }\n  }\n];"
+        "jsCode": "// Получаем данные из Merge - он объединяет все в один item\nconst mergedItem = $input.first().json;\n\n// Merge объединяет объекты, поэтому все поля должны быть на верхнем уровне\nconst userId = mergedItem.userId;\nconst chatId = mergedItem.chatId;\nconst userMessage = mergedItem.userMessage;\nconst userName = mergedItem.userName;\nconst timestamp = mergedItem.timestamp;\nconst knowledge = mergedItem.knowledgeBase || 'База знаний не загружена';\nconst history = mergedItem.history || [];\nconst userProfile = mergedItem.userProfile || {};\n\n// Проверяем что данные пользователя найдены\nif (!userId || !userMessage) {\n  throw new Error('Не найдены данные пользователя. Merged data: ' + JSON.stringify(mergedItem, null, 2));\n}\n\n// Реверсируем историю (сначала старые сообщения)\nconst reversedHistory = Array.isArray(history) ? [...history].reverse() : [];\n\n// Формируем информацию о профиле пользователя\nlet profileInfo = '';\nif (userProfile && Object.keys(userProfile).length > 0) {\n  profileInfo = `\n\n=== ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ ===\nИмя: ${userProfile.name || 'не указано'}\nВозраст: ${userProfile.age || 'не указано'}\nВес: ${userProfile.weight || 'не указано'} кг\nРост: ${userProfile.height || 'не указано'} см\nЦель: ${userProfile.goal || 'не указана'}\n=== КОНЕЦ ПРОФИЛЯ ===`;\n}\n\n// Формируем массив сообщений для DeepSeek\nconst messages = [\n  {\n    role: 'system',\n    content: `Ты профессиональный консультант по здоровому питанию и коррекции пищевого поведения.\n\nТвоя задача - помогать клиентам:\n1. Понять основы правильного питания и физиологии похудения\n2. Разработать индивидуальный план питания\n3. Скорректировать пищевое поведение\n4. Достичь целей по снижению веса безопасно и эффективно\n5. Развенчать мифы о диетах и похудении\n\nТы используешь только научно обоснованные методы:\n- Дробное питание (5-6 раз в день)\n- Умеренный дефицит калорий (без голодания)\n- Правильное распределение БЖУ\n- Учёт гликемического индекса\n- Поддержание высокого метаболизма\n\nБудь внимательным, задавай уточняющие вопросы:\n- Текущий вес, рост, возраст, пол\n- Целевой вес и сроки\n- Режим дня и физическая активность\n- Пищевые привычки и предпочтения\n- Противопоказания и заболевания\n\nОбъясняй понятно, с научным обоснованием, с терминами.\nМотивируй, поддерживай, помогай выстроить правильные привычки.\n\n=== НАУЧНАЯ БАЗА ЗНАНИЙ ===\n${knowledge}\n=== КОНЕЦ БАЗЫ ЗНАНИЙ ===${profileInfo}\n\n⚠️ КРИТИЧЕСКИ ВАЖНО - ОГРАНИЧЕНИЯ TELEGRAM:\n- Telegram имеет лимит 4096 символов на сообщение Твой ответ должен быть КРАТКИМ и ЛАКОНИЧНЫМ (старайся укладываться в 2000 символов)\n- Говори по делу, без воды\n\n- Отвечай на русском языке\n- Структурируй ответ списками и короткими абзацами\n- Используй эмодзи\n- СТРОГО Используй ТОЛЬКО этот синтаксис для текста:  \n  1) Обычный текст\n  2) Жирный (2 звездочки) **текст**\n  3) Курсив (2 подчеркивания)  __текст__\n  4) Ссылки (квадратные и круглые скобки) [текст](ссылка)\n  5) Таблицы оборачивай в три обратных апострофа чтобы получить моноширинный текст\n`\n  }\n];\n\n// Добавляем историю (если есть)\nreversedHistory.forEach(msg => {\n  messages.push({\n    role: msg.role,\n    content: msg.content\n  });\n});\n\n// Добавляем текущее сообщение\nmessages.push({\n  role: 'user',\n  content: userMessage\n});\n\nreturn [\n  {\n    json: {\n      messages: messages,\n      userId: userId,\n      chatId: chatId,\n      userName: userName,\n      userMessage: userMessage,\n      timestamp: timestamp\n    }\n  }\n];"
       },
       "id": "8176f9fd-19e1-424a-8e9d-8d19fbaf1565",
       "name": "Build AI Context",
@@ -255,6 +256,42 @@
     },
     {
       "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT name, age, weight, height, goal FROM user_profiles WHERE user_id = {{ $json.userId }} LIMIT 1",
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "Load User Profile",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -2320,
+        280
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "m8I7qpcLB2JzbKQ9",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Получаем результаты из PostgreSQL\nconst items = $input.all();\nconst userData = $('Extract User Data').first().json;\n\n// Если профиля нет - возвращаем пустой объект\nif (items.length === 0) {\n  return [{\n    json: {\n      userProfile: {},\n      userId: userData.userId,\n      chatId: userData.chatId,\n      userMessage: userData.userMessage,\n      userName: userData.userName,\n      timestamp: userData.timestamp\n    }\n  }];\n}\n\n// Берем первую запись\nconst profile = items[0].json;\n\nreturn [{\n  json: {\n    userProfile: {\n      name: profile.name,\n      age: profile.age,\n      weight: profile.weight,\n      height: profile.height,\n      goal: profile.goal\n    },\n    userId: userData.userId,\n    chatId: userData.chatId,\n    userMessage: userData.userMessage,\n    userName: userData.userName,\n    timestamp: userData.timestamp\n  }\n}];"
+      },
+      "id": "f1e2d3c4-b5a6-7890-cdef-1234567890ab",
+      "name": "Format User Profile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2112,
+        280
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "https://api.deepseek.com/v1/chat/completions",
         "authentication": "predefinedCredentialType",
@@ -366,6 +403,17 @@
         ]
       ]
     },
+    "Load User Profile": {
+      "main": [
+        [
+          {
+            "node": "Format User Profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Read Knowledge Base": {
       "main": [
         [
@@ -384,6 +432,17 @@
             "node": "Merge Branches",
             "type": "main",
             "index": 1
+          }
+        ]
+      ]
+    },
+    "Format User Profile": {
+      "main": [
+        [
+          {
+            "node": "Merge Branches",
+            "type": "main",
+            "index": 2
           }
         ]
       ]
@@ -458,6 +517,11 @@
           },
           {
             "node": "Read Knowledge Base",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Load User Profile",
             "type": "main",
             "index": 0
           }
