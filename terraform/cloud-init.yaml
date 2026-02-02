@@ -19,8 +19,46 @@ packages:
   - lsb-release
   - ufw
   - fail2ban
+  - google-compute-engine-oslogin
 
 runcmd:
+  # Set password for ubuntu user (for Serial Console access)
+  - echo 'ubuntu:${ubuntu_password}' | chpasswd
+  
+  # Configure OS Login
+  - mkdir -p /var/google-users.d /var/google-sudoers.d
+  - chmod 755 /var/google-users.d /var/google-sudoers.d
+  
+  # Configure NSS for OS Login
+  - sed -i 's/^\(passwd:.*\)$/\1 cache_oslogin oslogin/' /etc/nsswitch.conf
+  - sed -i 's/^\(group:.*\)$/\1 cache_oslogin oslogin/' /etc/nsswitch.conf
+  
+  # Configure SSHD for OS Login
+  - |
+    cat > /etc/ssh/sshd_config.d/99-google-oslogin.conf <<EOF
+    # Google OS Login configuration
+    AuthorizedKeysCommand /usr/bin/google_authorized_keys %u
+    AuthorizedKeysCommandUser root
+    EOF
+  
+  # Configure PAM for OS Login
+  - |
+    cat >> /etc/pam.d/sshd <<EOF
+    
+    # Google OS Login
+    auth       [success=done perm_denied=die default=ignore] pam_oslogin_login.so
+    auth       [success=done perm_denied=die default=ignore] pam_oslogin_admin.so
+    account    [success=ok default=ignore] pam_oslogin_login.so
+    account    [success=ok default=ignore] pam_oslogin_admin.so
+    session    [success=ok default=ignore] pam_mkhomedir.so
+    EOF
+  
+  # Configure sudoers for OS Login
+  - echo '#includedir /var/google-sudoers.d' >> /etc/sudoers
+  
+  # Restart SSHD to apply OS Login configuration
+  - systemctl restart sshd
+  
   # Install Docker
   - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
   - echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null

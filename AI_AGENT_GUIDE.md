@@ -270,25 +270,317 @@ DNS зона и записи управляются через Terraform (`terra
 
 ---
 
-## 📡 Быстрые команды
+## 📡 Работа с виртуальной машиной
 
-### Проверка статуса
+### ⚠️ ВАЖНО: SSH может быть недоступен!
+
+**Проблема:** SSH порт 22 может быть заблокирован:
+- Провайдером/VPN
+- Fail2ban после неудачных попыток
+- Сетевыми настройками
+
+**Решение:** Используй **Yandex Cloud CLI** для работы с ВМ!
+
+---
+
+## 🔧 Работа через Yandex Cloud CLI (ОСНОВНОЙ СПОСОБ)
+
+### ⚠️ КРИТИЧЕСКИ ВАЖНО: Профили YC CLI
+
+В проекте настроены **ДВА профиля** YC CLI:
+
+| Профиль | Тип | Использование |
+|---------|-----|---------------|
+| **`pandanax`** | Личный аккаунт | ✅ SSH к VM через OS Login, интерактивная работа |
+| **`sa-n8n-bot`** | Service Account | ✅ Terraform операции, автоматизация |
+
+**ПРАВИЛО:** Для подключения к VM через SSH **ВСЕГДА используй профиль `pandanax`**!
+
 ```bash
-# SSH на сервер (IP в .local/quick-reference.md)
-ssh ubuntu@<server-ip>
+# ❌ НЕПРАВИЛЬНО - service account не может подключиться по SSH
+yc compute ssh --name n8n-server  # если активен sa-n8n-bot
+# ERROR: OS login info not found for subject 'ajefmtlpibd23o3ckhfl'
 
-# Статус контейнеров
-cd /opt/n8n && docker compose ps
+# ✅ ПРАВИЛЬНО - переключись на личный профиль
+yc config profile activate pandanax
+yc compute ssh --name n8n-server
 
-# Логи n8n
-docker compose logs -f n8n
-
-# Проверка HTTPS
-curl -I https://n8n.mandala-app.online/
+# ✅ ЕЩЕ ЛУЧШЕ - одной командой
+yc config profile activate pandanax && yc compute ssh --name n8n-server
 ```
 
-### Terraform
+### Проверка текущего профиля
+
 ```bash
+# Посмотреть какой профиль активен
+yc config list
+# Если видишь service-account-key → это sa-n8n-bot
+# Если видишь token → это pandanax
+
+# Список всех профилей
+yc config profile list
+# Профиль с пометкой ACTIVE - текущий активный
+
+# Переключиться на нужный профиль
+yc config profile activate pandanax    # для SSH
+yc config profile activate sa-n8n-bot  # для Terraform
+```
+
+### Выполнение команд на ВМ через OS Login
+
+```bash
+# ВСЕГДА СНАЧАЛА переключись на личный профиль!
+yc config profile activate pandanax
+
+# Интерактивное подключение
+yc compute ssh --name n8n-server
+
+# Выполнение одной команды
+yc compute ssh --name n8n-server -- "КОМАНДА"
+
+# По ID VM (если нужно)
+yc compute ssh --id epd1hs0nht8o2bf48b65 -- "КОМАНДА"
+```
+
+### Примеры команд (с правильным профилем!)
+
+```bash
+# ВАЖНО: Всегда переключайся на pandanax перед SSH командами!
+yc config profile activate pandanax
+
+# Проверить статус контейнеров
+yc compute ssh --name n8n-server -- "cd /opt/n8n && docker compose ps"
+
+# Посмотреть логи n8n
+yc compute ssh --name n8n-server -- "cd /opt/n8n && docker compose logs --tail=100 n8n"
+
+# Посмотреть логи Nginx
+yc compute ssh --name n8n-server -- "cd /opt/n8n && docker compose logs --tail=50 nginx"
+
+# Перезапустить сервис
+yc compute ssh --name n8n-server -- "cd /opt/n8n && docker compose restart n8n"
+
+# Проверить свободное место на диске
+yc compute ssh --name n8n-server -- "df -h"
+
+# Проверить использование памяти
+yc compute ssh --name n8n-server -- "free -h"
+
+# Проверить что ты подключен с правильными правами
+yc compute ssh --name n8n-server -- "whoami && sudo whoami"
+# Должно вывести: pandanaxya и root (если sudo работает)
+```
+
+---
+
+## 🗄️ Работа с Managed PostgreSQL через YC CLI
+
+⚠️ **Используем Yandex Managed PostgreSQL!**
+
+PostgreSQL теперь managed service, не Docker контейнер. Управление через YC CLI без SSH!
+
+**✅ Доступы настроены автоматически:**
+- Security Group разрешает доступ с ВМ n8n-server
+- ВМ подключается к PostgreSQL через внутреннюю сеть (subnet)
+- SSL подключение включено по умолчанию
+
+### Получить ID кластера
+
+```bash
+cd terraform
+CLUSTER_ID=$(terraform output -raw postgres_cluster_id)
+echo $CLUSTER_ID
+```
+
+### Создание таблицы в PostgreSQL
+
+```bash
+# Создать таблицу chat_history для Mandala Bot
+yc managed-postgresql cluster execute \
+  --id $CLUSTER_ID \
+  --database n8n \
+  --user n8n \
+  << 'EOF'
+CREATE TABLE IF NOT EXISTS chat_history (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    role VARCHAR(20) NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_created ON chat_history(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_id ON chat_history(user_id);
+
+SELECT 'Table created successfully' as status;
+EOF
+```
+
+### Проверка таблиц
+
+```bash
+# Список всех таблиц
+yc managed-postgresql cluster execute \
+  --id $CLUSTER_ID \
+  --database n8n \
+  --user n8n \
+  -c "\dt"
+
+# Структура таблицы chat_history
+yc managed-postgresql cluster execute \
+  --id $CLUSTER_ID \
+  --database n8n \
+  --user n8n \
+  -c "\d chat_history"
+
+# Количество записей
+yc managed-postgresql cluster execute \
+  --id $CLUSTER_ID \
+  --database n8n \
+  --user n8n \
+  -c "SELECT COUNT(*) FROM chat_history;"
+
+# Последние 10 записей
+yc managed-postgresql cluster execute \
+  --id $CLUSTER_ID \
+  --database n8n \
+  --user n8n \
+  -c "SELECT * FROM chat_history ORDER BY created_at DESC LIMIT 10;"
+```
+
+### Управление данными
+
+```bash
+# Удалить историю конкретного пользователя
+yc managed-postgresql cluster execute \
+  --id $CLUSTER_ID \
+  --database n8n \
+  --user n8n \
+  -c "DELETE FROM chat_history WHERE user_id = 123456789;"
+
+# Очистить всю таблицу
+yc managed-postgresql cluster execute \
+  --id $CLUSTER_ID \
+  --database n8n \
+  --user n8n \
+  -c "TRUNCATE TABLE chat_history;"
+
+# Удалить старые записи (старше 30 дней)
+yc managed-postgresql cluster execute \
+  --id $CLUSTER_ID \
+  --database n8n \
+  --user n8n \
+  -c "DELETE FROM chat_history WHERE created_at < NOW() - INTERVAL '30 days';"
+```
+
+### Бекап и восстановление
+
+```bash
+# Создать бекап вручную (автоматические уже настроены!)
+yc managed-postgresql cluster backup $CLUSTER_ID
+
+# Список бекапов
+yc managed-postgresql backup list --cluster-id $CLUSTER_ID
+
+# Восстановить из конкретного бекапа
+yc managed-postgresql cluster restore \
+  --backup-id <BACKUP_ID> \
+  --name n8n-postgres-restored \
+  --environment PRODUCTION
+```
+
+### Мониторинг кластера
+
+```bash
+# Информация о кластере
+yc managed-postgresql cluster get $CLUSTER_ID
+
+# Логи
+yc managed-postgresql cluster list-logs --id $CLUSTER_ID --limit 100
+
+# Список баз данных
+yc managed-postgresql database list --cluster-id $CLUSTER_ID
+
+# Список пользователей
+yc managed-postgresql user list --cluster-id $CLUSTER_ID
+```
+
+---
+
+## 📊 Мониторинг и диагностика через YC CLI
+
+### Статус сервисов
+
+```bash
+# Статус всех контейнеров
+yc compute ssh --name n8n-server --command "docker ps"
+
+# Использование ресурсов контейнерами
+yc compute ssh --name n8n-server --command "docker stats --no-stream"
+
+# Проверка здоровья PostgreSQL
+yc compute ssh --name n8n-server --command "
+docker exec n8n-postgres pg_isready -U n8n
+"
+```
+
+### Логи
+
+```bash
+# Последние 100 строк логов n8n
+yc compute ssh --name n8n-server --command "
+cd /opt/n8n && docker compose logs --tail=100 n8n
+"
+
+# Следить за логами в реальном времени (НЕ РАБОТАЕТ через yc compute ssh)
+# Используй Yandex Cloud Console → Serial Console для интерактивных команд
+
+# Логи Nginx
+yc compute ssh --name n8n-server --command "
+cd /opt/n8n && docker compose logs --tail=50 nginx
+"
+
+# Ошибки из всех сервисов
+yc compute ssh --name n8n-server --command "
+cd /opt/n8n && docker compose logs --tail=200 | grep -i error
+"
+```
+
+---
+
+## 🚨 Альтернатива: Yandex Cloud Serial Console
+
+Если YC CLI не работает, используй **Serial Console** в веб-интерфейсе:
+
+1. Открой https://console.cloud.yandex.ru/
+2. Перейди в **Compute Cloud** → **Виртуальные машины**
+3. Выбери ВМ **n8n-server**
+4. Нажми **Подключиться** → **Serial Console**
+5. Залогинься: `ubuntu` (пароль не нужен если настроен SSH ключ)
+
+---
+
+## 📡 Быстрые команды (обновлённые)
+
+### Проверка статуса
+
+```bash
+# n8n доступен через HTTPS?
+curl -I https://n8n.mandala-app.online/
+
+# Статус контейнеров (через YC CLI)
+yc compute ssh --name n8n-server --command "cd /opt/n8n && docker compose ps"
+
+# Логи n8n (последние 50 строк)
+yc compute ssh --name n8n-server --command "cd /opt/n8n && docker compose logs --tail=50 n8n"
+```
+
+### Terraform (можно использовать любой профиль)
+
+```bash
+# Для terraform можно использовать sa-n8n-bot (рекомендуется) или pandanax
+yc config profile activate sa-n8n-bot  # или pandanax
+
 cd terraform
 terraform plan      # Проверить изменения
 terraform apply     # Применить изменения
@@ -296,14 +588,23 @@ terraform show      # Показать текущее состояние
 terraform output    # Показать outputs
 ```
 
-### Docker Compose
+### Docker Compose (через YC CLI + OS Login)
+
 ```bash
-cd /opt/n8n
-docker compose ps                # Статус
-docker compose logs -f [service] # Логи
-docker compose restart [service] # Перезапуск
-docker compose down              # Остановить всё
-docker compose up -d             # Запустить всё
+# ВАЖНО: переключись на pandanax для SSH!
+yc config profile activate pandanax
+
+# Статус
+yc compute ssh --name n8n-server -- "cd /opt/n8n && docker compose ps"
+
+# Перезапуск сервиса
+yc compute ssh --name n8n-server -- "cd /opt/n8n && docker compose restart n8n"
+
+# Остановить всё (ОСТОРОЖНО!)
+yc compute ssh --name n8n-server -- "cd /opt/n8n && docker compose down"
+
+# Запустить всё
+yc compute ssh --name n8n-server -- "cd /opt/n8n && docker compose up -d"
 ```
 
 ---
@@ -405,15 +706,18 @@ echo | openssl s_client -connect n8n.mandala-app.online:443 -servername n8n.mand
 - [ ] Прочитал этот файл (AI_AGENT_GUIDE.md)?
 - [ ] Понял текущий статус проекта?
 - [ ] Понял что пользователь работает через VPN?
+- [ ] **Понял разницу между профилями `pandanax` (для SSH) и `sa-n8n-bot` (для Terraform)?** ⚠️
+- [ ] **Знаешь что для SSH нужно `yc config profile activate pandanax`?** ⚠️
 - [ ] Знаешь что после изменений нужно обновить STATUS.md?
 - [ ] Знаешь структуру проекта?
 - [ ] Готов работать!
 
 ---
 
-**Версия документа:** 1.0  
+**Версия документа:** 1.1  
 **Создан:** 2026-02-01  
-**Последнее обновление:** 2026-02-01 15:00 UTC+3
+**Последнее обновление:** 2026-02-01 20:50 UTC+3  
+**Изменения:** Добавлена информация про профили YC CLI и OS Login
 
 **Статус проекта:** 🟢 РАБОТАЕТ
 

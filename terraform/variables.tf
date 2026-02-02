@@ -87,3 +87,19 @@ variable "allowed_ssh_ip" {
   type        = string
   # Will be set in terraform.tfvars
 }
+
+# Ubuntu user password for Serial Console
+variable "ubuntu_password" {
+  description = "Password for ubuntu user (Serial Console access)"
+  type        = string
+  sensitive   = true
+  default     = "ChangeMeAfterFirstLogin!"
+}
+
+# PostgreSQL Configuration
+variable "postgres_password" {
+  description = "PostgreSQL password for n8n user"
+  type        = string
+  sensitive   = true
+  # Will be set in terraform.tfvars
+}

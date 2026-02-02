@@ -1,5 +1,5 @@
 {
-  "name": "Mandala Bot Advanced (с историей и RAG)",
+  "name": "FitBot - Помощник по пищевому поведению",
   "nodes": [
     {
       "parameters": {
@@ -39,13 +39,13 @@
         },
         "options": {}
       },
-      "id": "bff0b6af-f543-4762-87ce-16755de786bf",
+      "id": "b8083d85-1889-4988-927a-8b95ab41783c",
       "name": "Extract User Data",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.3,
       "position": [
-        528,
-        304
+        -1280,
+        112
       ]
     },
     {
@@ -54,13 +54,13 @@
         "query": "SELECT role, content, created_at FROM chat_history WHERE user_id = {{ $json.userId }} ORDER BY created_at DESC LIMIT 10",
         "options": {}
       },
-      "id": "8a78b2f1-ac22-4270-8c22-a82023ce97b1",
+      "id": "026da005-2f38-4b30-b81c-dce474dc80fc",
       "name": "Load Chat History",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        720,
-        304
+        -1088,
+        112
       ],
       "credentials": {
         "postgres": {
@@ -73,13 +73,13 @@
       "parameters": {
         "jsCode": "// Получаем результаты из PostgreSQL\nconst items = $input.all();\n\n// Получаем данные пользователя из предыдущего узла Extract User Data\nconst userData = $('Extract User Data').first().json;\n\n// Если истории нет - возвращаем пустой массив\nif (items.length === 0) {\n  return [{\n    json: {\n      history: [],\n      // Передаем данные пользователя дальше\n      userId: userData.userId,\n      chatId: userData.chatId,\n      userMessage: userData.userMessage,\n      userName: userData.userName,\n      timestamp: userData.timestamp\n    }\n  }];\n}\n\n// Форматируем историю для AI\nconst history = items.map(item => ({\n  role: item.json.role,\n  content: item.json.content,\n  created_at: item.json.created_at\n}));\n\nreturn [{\n  json: {\n    history: history,\n    // Передаем данные пользователя дальше\n    userId: userData.userId,\n    chatId: userData.chatId,\n    userMessage: userData.userMessage,\n    userName: userData.userName,\n    timestamp: userData.timestamp\n  }\n}];"
       },
-      "id": "e81fb557-db3d-4ba4-9513-4937956ca8f7",
+      "id": "843efadb-755a-46f4-8d75-f6f4888fdb7a",
       "name": "Format History",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        944,
-        304
+        -864,
+        112
       ],
       "alwaysOutputData": true,
       "onError": "continueRegularOutput"
@@ -88,26 +88,26 @@
       "parameters": {
         "jsCode": "// Получаем binary data из Read Knowledge Base\nconst item = $input.first();\n\nif (!item || !item.binary || !item.binary.data) {\n  return [{\n    json: {\n      knowledgeBase: 'База знаний не загружена'\n    }\n  }];\n}\n\n// Правильно извлекаем текст из binary data\n// В n8n binary data хранится как Buffer или base64 строка\nconst binaryData = item.binary.data;\nlet content;\n\ntry {\n  if (binaryData.data) {\n    // Если есть поле data, это base64\n    content = Buffer.from(binaryData.data, 'base64').toString('utf-8');\n  } else if (Buffer.isBuffer(binaryData)) {\n    // Если это уже Buffer\n    content = binaryData.toString('utf-8');\n  } else {\n    content = 'Не удалось прочитать базу знаний';\n  }\n} catch (error) {\n  content = 'Ошибка чтения базы знаний: ' + error.message;\n}\n\nreturn [{\n  json: {\n    knowledgeBase: content\n  }\n}];"
       },
-      "id": "cd06c321-d504-4773-b517-f1025e3c6570",
+      "id": "e2c02ac2-083f-4577-9106-0d329b877a97",
       "name": "Load RAG Knowledge",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        720,
-        512
+        -1088,
+        320
       ]
     },
     {
       "parameters": {
-        "filePath": "/home/node/.n8n-files/rags/mandala-bot-advanced/knowledge.txt"
+        "filePath": "/home/node/.n8n-files/rags/fitbot/knowledge.txt"
       },
-      "id": "bd3efbbc-c876-4c6a-9413-a8a7ca8f16b9",
+      "id": "dbdea03b-01a1-491c-9f29-ec850f81f8c4",
       "name": "Read Knowledge Base",
       "type": "n8n-nodes-base.readBinaryFile",
       "typeVersion": 1,
       "position": [
-        512,
-        512
+        -1296,
+        320
       ]
     },
     {
@@ -116,31 +116,30 @@
         "combinationMode": "mergeByPosition",
         "options": {}
       },
-      "id": "merge-branches-1234-5678-90ab-cdef12345678",
+      "id": "f1ad6683-e344-4a4f-a650-7c7ac18965f3",
       "name": "Merge Branches",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 2.1,
       "position": [
-        944,
-        416
+        -864,
+        224
       ]
     },
     {
       "parameters": {
-        "jsCode": "// Получаем данные из Merge - он объединяет все в один item\nconst mergedItem = $input.first().json;\n\n// Merge объединяет объекты, поэтому все поля должны быть на верхнем уровне\nconst userId = mergedItem.userId;\nconst chatId = mergedItem.chatId;\nconst userMessage = mergedItem.userMessage;\nconst userName = mergedItem.userName;\nconst timestamp = mergedItem.timestamp;\nconst knowledge = mergedItem.knowledgeBase || 'База знаний не загружена';\nconst history = mergedItem.history || [];\n\n// Проверяем что данные пользователя найдены\nif (!userId || !userMessage) {\n  throw new Error('Не найдены данные пользователя. Merged data: ' + JSON.stringify(mergedItem, null, 2));\n}\n\n// Реверсируем историю (сначала старые сообщения)\nconst reversedHistory = Array.isArray(history) ? [...history].reverse() : [];\n\n// Формируем массив сообщений для DeepSeek\nconst messages = [\n  {\n    role: 'system',\n    content: `Ты специалист по созданию персональных мандал. \n\nТвоя задача:\n1. Выяснить какой тип мандалы хочет клиент (нумерологическая, астрологическая, природная, для медитации)\n2. Собрать необходимые данные:\n   - Дата рождения (обязательно для нумерологической мандалы)\n   - Имя (для усиления эффекта)\n   - Время и место рождения (если нужна астрологическая)\n   - Цель создания мандалы (медитация, исцеление, проявление намерений)\n3. Рассчитать мандалу по данным\n4. Выдать пример готовой мандалы и инструкции как рисовать самому\n\nБудь дружелюбным, задавай уточняющие вопросы, объясняй понятно.\nИспользуй знания из базы данных о мандалах.\n\n=== БАЗА ЗНАНИЙ О МАНДАЛАХ ===\n${knowledge}\n=== КОНЕЦ БАЗЫ ЗНАНИЙ ===\n\n⚠️ КРИТИЧЕСКИ ВАЖНО - ОГРАНИЧЕНИЯ TELEGRAM:\n- Telegram имеет лимит 4096 символов на сообщение\n- Твой ответ должен быть КРАТКИМ и ЛАКОНИЧНЫМ\n- Максимум 2500-3000 символов (включая форматирование)\n- НЕ пиши длинные простыни текста\n- Структурируй ответ списками и короткими абзацами\n- Если информации много - давай по частям, спрашивай \"Продолжить?\"\n- Говори по делу, без воды\n\nОтвечай на русском языке, используй форматирование Markdown для красоты.`\n  }\n];\n\n// Добавляем историю (если есть)\nreversedHistory.forEach(msg => {\n  messages.push({\n    role: msg.role,\n    content: msg.content\n  });\n});\n\n// Добавляем текущее сообщение\nmessages.push({\n  role: 'user',\n  content: userMessage\n});\n\nreturn [\n  {\n    json: {\n      messages: messages,\n      userId: userId,\n      chatId: chatId,\n      userName: userName,\n      userMessage: userMessage,\n      timestamp: timestamp\n    }\n  }\n];"
+        "jsCode": "// Получаем данные из Merge - он объединяет все в один item\nconst mergedItem = $input.first().json;\n\n// Merge объединяет объекты, поэтому все поля должны быть на верхнем уровне\nconst userId = mergedItem.userId;\nconst chatId = mergedItem.chatId;\nconst userMessage = mergedItem.userMessage;\nconst userName = mergedItem.userName;\nconst timestamp = mergedItem.timestamp;\nconst knowledge = mergedItem.knowledgeBase || 'База знаний не загружена';\nconst history = mergedItem.history || [];\n\n// Проверяем что данные пользователя найдены\nif (!userId || !userMessage) {\n  throw new Error('Не найдены данные пользователя. Merged data: ' + JSON.stringify(mergedItem, null, 2));\n}\n\n// Реверсируем историю (сначала старые сообщения)\nconst reversedHistory = Array.isArray(history) ? [...history].reverse() : [];\n\n// Формируем массив сообщений для DeepSeek\nconst messages = [\n  {\n    role: 'system',\n    content: `Ты профессиональный консультант по здоровому питанию и коррекции пищевого поведения.\n\nТвоя задача - помогать клиентам:\n1. Понять основы правильного питания и физиологии похудения\n2. Разработать индивидуальный план питания\n3. Скорректировать пищевое поведение\n4. Достичь целей по снижению веса безопасно и эффективно\n5. Развенчать мифы о диетах и похудении\n\nТы используешь только научно обоснованные методы:\n- Дробное питание (5-6 раз в день)\n- Умеренный дефицит калорий (без голодания)\n- Правильное распределение БЖУ\n- Учёт гликемического индекса\n- Поддержание высокого метаболизма\n\nБудь внимательным, задавай уточняющие вопросы:\n- Текущий вес, рост, возраст, пол\n- Целевой вес и сроки\n- Режим дня и физическая активность\n- Пищевые привычки и предпочтения\n- Противопоказания и заболевания\n\nОбъясняй понятно, с научным обоснованием, но без перегрузки терминами.\nМотивируй, поддерживай, помогай выстроить правильные привычки.\n\n=== НАУЧНАЯ БАЗА ЗНАНИЙ ===\n${knowledge}\n=== КОНЕЦ БАЗЫ ЗНАНИЙ ===\n\n⚠️ КРИТИЧЕСКИ ВАЖНО - ОГРАНИЧЕНИЯ TELEGRAM:\n- Telegram имеет лимит 4096 символов на сообщение\n- Твой ответ должен быть КРАТКИМ и ЛАКОНИЧНЫМ\n- Максимум 2500-3000 символов (включая форматирование)\n- НЕ пиши длинные простыни текста\n- Структурируй ответ списками и короткими абзацами\n- Если тема большая - разбей на несколько коротких сообщений по сути\n- Говори по делу, без воды\n\nОтвечай на русском языке, используй форматирование Markdown для структурирования информации.\nВсегда опирайся на научные данные из базы знаний.`\n  }\n];\n\n// Добавляем историю (если есть)\nreversedHistory.forEach(msg => {\n  messages.push({\n    role: msg.role,\n    content: msg.content\n  });\n});\n\n// Добавляем текущее сообщение\nmessages.push({\n  role: 'user',\n  content: userMessage\n});\n\nreturn [\n  {\n    json: {\n      messages: messages,\n      userId: userId,\n      chatId: chatId,\n      userName: userName,\n      userMessage: userMessage,\n      timestamp: timestamp\n    }\n  }\n];"
       },
-      "id": "fa3976c1-9295-4e11-832a-921fbdff9ab7",
+      "id": "72b2d1ca-0b1c-49d0-aa3b-67216cdca62e",
       "name": "Build AI Context",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1168,
-        416
+        -640,
+        224
       ]
     },
     {
       "parameters": {
-        "operation": "insert",
         "schema": {
           "__rl": true,
           "value": "public",
@@ -160,13 +159,13 @@
         },
         "options": {}
       },
-      "id": "60b93410-d585-4afd-ae44-6d59f09d414b",
+      "id": "376bbd4e-6b7b-43ab-b0c3-d4d3f7b4aa9c",
       "name": "Save to History",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        2016,
-        200
+        208,
+        0
       ],
       "credentials": {
         "postgres": {
@@ -182,19 +181,19 @@
         ],
         "additionalFields": {}
       },
-      "id": "936aa80f-4c28-41e7-8e97-cb55c473e759",
-      "name": "Telegram Trigger1",
+      "id": "de372c7c-bb43-4f11-a5b9-7aebe06ec629",
+      "name": "Telegram Trigger",
       "type": "n8n-nodes-base.telegramTrigger",
       "typeVersion": 1.1,
       "position": [
-        288,
-        416
+        -1520,
+        224
       ],
-      "webhookId": "mandala-bot-advanced",
+      "webhookId": "fitbot-telegram-trigger",
       "credentials": {
         "telegramApi": {
-          "id": "34X2Fo7imiVxGHq1",
-          "name": "mandala bot"
+          "id": "wKVWnRtsrAhWh9au",
+          "name": "FitBot"
         }
       }
     },
@@ -206,16 +205,16 @@
         "nodeCredentialType": "openAiApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"deepseek-chat\",\n  \"messages\": {{ JSON.stringify($json.messages) }},\n  \"max_tokens\": 1000,\n  \"temperature\": 0.8\n}",
+        "jsonBody": "={\n  \"model\": \"deepseek-chat\",\n  \"messages\": {{ JSON.stringify($json.messages) }},\n  \"max_tokens\": 1000,\n  \"temperature\": 0.7\n}",
         "options": {}
       },
-      "id": "86468b39-4b57-4347-b44f-b77e5355541f",
-      "name": "DeepSeek AI1",
+      "id": "b2e9aada-d051-4ad8-9f60-275009e58b24",
+      "name": "DeepSeek AI",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1392,
-        416
+        -416,
+        224
       ],
       "credentials": {
         "openAiApi": {
@@ -228,26 +227,26 @@
       "parameters": {
         "jsCode": "const aiResponse = $input.first().json;\nconst context = $('Build AI Context').first().json;\n\n// Извлекаем ответ от DeepSeek\nconst response = aiResponse.choices[0].message.content;\n\nreturn [\n  {\n    json: {\n      userId: context.userId,\n      chatId: context.chatId,\n      userName: context.userName,\n      userMessage: context.userMessage,\n      response: response,\n      timestamp: context.timestamp\n    }\n  }\n];"
       },
-      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "id": "a35d194b-58ee-49ef-8467-547fdb90be8e",
       "name": "Format Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1600,
-        416
+        -208,
+        224
       ]
     },
     {
       "parameters": {
         "jsCode": "const data = $input.first().json;\nconst now = new Date().toISOString();\n\n// Создаем 2 записи для PostgreSQL\nreturn [\n  {\n    json: {\n      user_id: data.userId,\n      role: 'user',\n      content: data.userMessage,\n      created_at: data.timestamp\n    }\n  },\n  {\n    json: {\n      user_id: data.userId,\n      role: 'assistant',\n      content: data.response,\n      created_at: now\n    }\n  }\n];"
       },
-      "id": "prep4save-1234-5678-90ab-cdef12345678",
+      "id": "4f50eeb4-68be-4759-83da-a68cb56bd50c",
       "name": "Prepare for Save",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1808,
-        200
+        0,
+        0
       ]
     },
     {
@@ -256,22 +255,22 @@
         "text": "={{ $json.response }}",
         "additionalFields": {
           "parse_mode": "Markdown",
-          "reply_to_message_id": "={{ $('Telegram Trigger1').item.json.message.message_id }}"
+          "reply_to_message_id": "={{ $('Telegram Trigger').item.json.message.message_id }}"
         }
       },
-      "id": "d9c040e1-2424-4939-b33b-4680a2d27074",
-      "name": "Send AI Reply1",
+      "id": "30358b18-382f-4469-8d60-77d3d819abe3",
+      "name": "Send AI Reply",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.1,
       "position": [
-        1808,
-        512
+        0,
+        320
       ],
       "webhookId": "0364d411-3c8b-4130-bfa9-b281761b67b6",
       "credentials": {
         "telegramApi": {
-          "id": "34X2Fo7imiVxGHq1",
-          "name": "mandala bot"
+          "id": "wKVWnRtsrAhWh9au",
+          "name": "FitBot"
         }
       }
     }
@@ -348,14 +347,14 @@
       "main": [
         [
           {
-            "node": "DeepSeek AI1",
+            "node": "DeepSeek AI",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "DeepSeek AI1": {
+    "DeepSeek AI": {
       "main": [
         [
           {
@@ -375,7 +374,7 @@
             "index": 0
           },
           {
-            "node": "Send AI Reply1",
+            "node": "Send AI Reply",
             "type": "main",
             "index": 0
           }
@@ -393,7 +392,7 @@
         ]
       ]
     },
-    "Telegram Trigger1": {
+    "Telegram Trigger": {
       "main": [
         [
           {
@@ -410,53 +409,65 @@
       ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1",
     "availableInMCP": false
   },
-  "versionId": "3e42aa48-0bcc-4988-be59-7c86bad5afba",
+  "versionId": "6d86aaa2-3db5-42ab-92c7-509f8abcd76b",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "53814074f06b7b5c9f98d5e8e8070a4c29be85d0115b2eb5224f97008ecdcc35"
   },
-  "id": "Xz6m4Sjz-n08TvXZzuHVZ",
+  "id": "GKfW3GIkNl5uIDRlS0Y_e",
   "tags": [
     {
-      "name": "telegram",
-      "id": "lZccS9NCfAhH4WAP",
       "updatedAt": "2026-02-01T19:01:14.892Z",
-      "createdAt": "2026-02-01T19:01:14.892Z"
+      "createdAt": "2026-02-01T19:01:14.892Z",
+      "id": "lZccS9NCfAhH4WAP",
+      "name": "telegram"
     },
     {
-      "name": "ai",
-      "id": "1u5kaGx7wSYdlOVY",
       "updatedAt": "2026-02-01T19:01:14.888Z",
-      "createdAt": "2026-02-01T19:01:14.888Z"
+      "createdAt": "2026-02-01T19:01:14.888Z",
+      "id": "1u5kaGx7wSYdlOVY",
+      "name": "ai"
     },
     {
-      "name": "deepseek",
-      "id": "UfDxYtRRk7yGNfhL",
       "updatedAt": "2026-02-01T19:01:14.897Z",
-      "createdAt": "2026-02-01T19:01:14.897Z"
+      "createdAt": "2026-02-01T19:01:14.897Z",
+      "id": "UfDxYtRRk7yGNfhL",
+      "name": "deepseek"
     },
     {
-      "name": "mandala",
-      "id": "nyB1McGop5jS26QI",
-      "updatedAt": "2026-02-01T19:04:54.605Z",
-      "createdAt": "2026-02-01T19:04:54.605Z"
+      "name": "fitbot",
+      "id": "v5xRLxl7g28HYena",
+      "updatedAt": "2026-02-01T21:30:27.780Z",
+      "createdAt": "2026-02-01T21:30:27.780Z"
     },
     {
-      "name": "rag",
-      "id": "2Evxlle39wjdDpwX",
+      "name": "fitness",
+      "id": "2OMN5CimtN7RzkNk",
+      "updatedAt": "2026-02-01T21:30:27.794Z",
+      "createdAt": "2026-02-01T21:30:27.794Z"
+    },
+    {
+      "name": "nutrition",
+      "id": "e2Gc4sAfHytzjbUi",
+      "updatedAt": "2026-02-01T21:30:27.795Z",
+      "createdAt": "2026-02-01T21:30:27.795Z"
+    },
+    {
       "updatedAt": "2026-02-01T19:04:54.619Z",
-      "createdAt": "2026-02-01T19:04:54.619Z"
+      "createdAt": "2026-02-01T19:04:54.619Z",
+      "id": "2Evxlle39wjdDpwX",
+      "name": "rag"
     },
     {
-      "name": "history",
-      "id": "R3B9ivxlxJex91qb",
       "updatedAt": "2026-02-01T19:04:54.613Z",
-      "createdAt": "2026-02-01T19:04:54.613Z"
+      "createdAt": "2026-02-01T19:04:54.613Z",
+      "id": "R3B9ivxlxJex91qb",
+      "name": "history"
     }
   ]
 }

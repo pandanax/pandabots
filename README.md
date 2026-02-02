@@ -67,13 +67,19 @@ Internet → Yandex Cloud DNS → n8n.mandala-app.online
                                     ↓
                         [Yandex Cloud Security Group]
                                     ↓
-                    [VM: Ubuntu 22.04, 2CPU, 4GB RAM]
-                                    ↓
-                         [Docker Compose Stack]
-                        ├─ Nginx (reverse proxy + SSL)
-                        ├─ n8n (workflow automation)
-                        ├─ PostgreSQL (database)
-                        └─ Certbot (SSL renewal)
+        ┌───────────────────────────────────────────────────┐
+        │   VM: Ubuntu 22.04, 2CPU, 4GB RAM                 │
+        │   ┌─────────────────────────────┐                 │
+        │   │   Docker Compose Stack      │                 │
+        │   ├─ Nginx (reverse proxy+SSL) │                 │
+        │   ├─ n8n (workflow automation)  │───┐             │
+        │   └─ Certbot (SSL renewal)      │   │             │
+        └───────────────────────────────────────┼───────────┘
+                                                │
+                                                ↓ (SSL)
+                        [Yandex Managed PostgreSQL]
+                        PostgreSQL 15, 2CPU, 8GB RAM
+                        ✅ Автобекапы ✅ Мониторинг
 ```
 
 ---
@@ -88,7 +94,7 @@ Internet → Yandex Cloud DNS → n8n.mandala-app.online
 | **Containers** | Docker Compose | v5.0.2 |
 | **Web Server** | Nginx | alpine |
 | **SSL** | Let's Encrypt | auto-renew |
-| **Database** | PostgreSQL | 15-alpine |
+| **Database** | Yandex Managed PostgreSQL ⭐ | 15 |
 | **App** | n8n | 2.4.8 |
 
 ---
@@ -101,16 +107,25 @@ Internet → Yandex Cloud DNS → n8n.mandala-app.online
 - DNS зона и A-записи
 - Всё в коде, легко воспроизвести
 
+### Managed PostgreSQL ⭐ NEW!
+- Yandex Managed PostgreSQL вместо Docker контейнера
+- Автоматические бекапы (7 дней retention)
+- Встроенный мониторинг и логирование
+- Автоматические обновления PostgreSQL
+- SSL подключение из коробки
+- **Управление через YC CLI - без SSH!**
+
 ### Безопасность
 - SSL/HTTPS с автоматическим обновлением
 - UFW firewall + Fail2ban
-- PostgreSQL изолирован в Docker network
+- PostgreSQL с SSL подключением
 - Security headers (HSTS, XSS Protection)
 
 ### Автоматизация
-- Скрипты для развертывания
-- Docker Compose для управления
+- Infrastructure as Code через Terraform
+- Docker Compose для управления приложений
 - Certbot для SSL renewal
+- Автоматические бекапы PostgreSQL
 
 ---
 
@@ -123,8 +138,15 @@ Internet → Yandex Cloud DNS → n8n.mandala-app.online
 ├── AI_AGENT_GUIDE.md    # Для AI агентов
 │
 ├── workflows/           # 🤖 Готовые n8n workflow
-│   ├── telegram-hello-bot.json    # Пример: Telegram бот
-│   └── SETUP_TELEGRAM_BOT.md      # Инструкция
+│   ├── telegram-hello-bot.json        # Простой Telegram бот
+│   ├── telegram-deepseek-bot.json     # AI бот с DeepSeek
+│   ├── mandala-bot-advanced.json      # Бот-эксперт по мандалам (RAG)
+│   ├── telegram-fitbot.json           # Консультант по питанию (RAG)
+│   └── SETUP_*.md                     # Инструкции по настройке
+│
+├── rags/                # 📚 Базы знаний (RAG)
+│   ├── mandala-bot-advanced/  # База о мандалах
+│   └── fitbot/                # База о питании
 │
 ├── docs/                # 📚 Вся документация
 │   ├── 01-05-*.md       # История развертывания
@@ -152,8 +174,11 @@ Internet → Yandex Cloud DNS → n8n.mandala-app.online
 1. Открой https://n8n.mandala-app.online
 2. Создай admin аккаунт
 3. **Попробуй готовые workflow из `workflows/`!**
-   - [Telegram бот](workflows/telegram-hello-bot.json) - простой пример
-   - Инструкции в [workflows/SETUP_TELEGRAM_BOT.md](workflows/SETUP_TELEGRAM_BOT.md)
+   - [Простой бот](workflows/telegram-hello-bot.json) - базовый пример
+   - [DeepSeek бот](workflows/telegram-deepseek-bot.json) - AI бот
+   - [Mandala Bot](workflows/mandala-bot-advanced.json) - эксперт по мандалам с RAG
+   - [FitBot](workflows/telegram-fitbot.json) - консультант по питанию с RAG
+   - Инструкции в [workflows/](workflows/)
 
 ### Для разработки:
 - Читай [docs/README.md](docs/README.md)

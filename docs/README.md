@@ -18,6 +18,9 @@
 
 ### Начало работы
 - **[guides/QUICK_START.md](guides/QUICK_START.md)** - Быстрый старт, основные команды
+- **[guides/OS_LOGIN_GUIDE.md](guides/OS_LOGIN_GUIDE.md)** 🔐 - Централизованный SSH доступ через OS Login
+- **[guides/POSTGRESQL_GUIDE.md](guides/POSTGRESQL_GUIDE.md)** ⭐ - Работа с PostgreSQL через YC CLI
+- **[guides/MIGRATION_TO_MANAGED_POSTGRESQL.md](guides/MIGRATION_TO_MANAGED_POSTGRESQL.md)** 🔄 - Миграция на Managed PostgreSQL
 
 ### Git и безопасность
 - **[guides/GIT_SETUP.md](guides/GIT_SETUP.md)** - Подключение к git репозиторию
@@ -32,8 +35,10 @@
 - **[reference/SECURITY_AUDIT_REPORT.md](reference/SECURITY_AUDIT_REPORT.md)** - Отчёт о проверке безопасности
 
 ### Данные и конфигурация
+- **[reference/YC_CLI_PROFILES.md](reference/YC_CLI_PROFILES.md)** 🔑 ⭐ - YC CLI профили (pandanax vs sa-n8n-bot)
 - **[reference/DATA_LOCATIONS.md](reference/DATA_LOCATIONS.md)** - Карта: где какие данные
 - **[reference/LOCAL_DATA_GUIDE.md](reference/LOCAL_DATA_GUIDE.md)** - Работа с локальными данными
+- **[reference/NETWORK_ACCESS.md](reference/NETWORK_ACCESS.md)** 🔐 - Сетевые доступы и Security Groups
 
 ---
 
@@ -54,6 +59,9 @@
 - **Где хранятся пароли?** → [reference/DATA_LOCATIONS.md](reference/DATA_LOCATIONS.md)
 - **Как работать с git?** → [guides/GIT_SETUP.md](guides/GIT_SETUP.md)
 - **Быстрые команды?** → [guides/QUICK_START.md](guides/QUICK_START.md)
+- **Работа с PostgreSQL?** → [guides/POSTGRESQL_GUIDE.md](guides/POSTGRESQL_GUIDE.md) ⭐
+- **Миграция на Managed PostgreSQL?** → [guides/MIGRATION_TO_MANAGED_POSTGRESQL.md](guides/MIGRATION_TO_MANAGED_POSTGRESQL.md) 🔄
+- **Сетевые доступы?** → [reference/NETWORK_ACCESS.md](reference/NETWORK_ACCESS.md) 🔐
 - **Безопасность?** → [reference/SECURITY.md](reference/SECURITY.md)
 
 ---
@@ -70,16 +78,19 @@ docs/
 ├── 04-infrastructure-deployed.md  # История: Развертывание
 ├── 05-deployment-complete.md      # История: Финал + все уроки
 │
-├── guides/                        # Гайды и инструкции
-│   ├── QUICK_START.md            # Быстрый старт
-│   ├── GIT_SETUP.md              # Настройка git
-│   └── PRE_COMMIT_CHECKLIST.md   # Чеклист перед commit
+├── guides/                               # Гайды и инструкции
+│   ├── QUICK_START.md                   # Быстрый старт
+│   ├── POSTGRESQL_GUIDE.md              # ⭐ Работа с PostgreSQL через YC CLI
+│   ├── MIGRATION_TO_MANAGED_POSTGRESQL.md # 🔄 План миграции на Managed PostgreSQL
+│   ├── GIT_SETUP.md                     # Настройка git
+│   └── PRE_COMMIT_CHECKLIST.md          # Чеклист перед commit
 │
 └── reference/                     # Справочная информация
     ├── SECURITY.md               # Правила безопасности
     ├── SECURITY_AUDIT_REPORT.md  # Аудит безопасности
     ├── DATA_LOCATIONS.md         # Где какие данные
-    └── LOCAL_DATA_GUIDE.md       # Работа с локальными данными
+    ├── LOCAL_DATA_GUIDE.md       # Работа с локальными данными
+    └── NETWORK_ACCESS.md         # 🔐 Сетевые доступы и Security Groups
 ```
 
 ---
@@ -104,4 +115,4 @@ docs/
 ---
 
 **Последнее обновление:** 2026-02-01  
-**Всего документов:** 12
+**Всего документов:** 15 (+ POSTGRESQL_GUIDE.md, + MIGRATION_TO_MANAGED_POSTGRESQL.md, + NETWORK_ACCESS.md)

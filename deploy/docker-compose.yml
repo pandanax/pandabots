@@ -1,29 +1,8 @@
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: n8n-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-n8n}
-      POSTGRES_USER: ${POSTGRES_USER:-n8n}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - n8n-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-n8n}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   n8n:
     image: n8nio/n8n:latest
     container_name: n8n
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
     environment:
       # Основные настройки
       N8N_HOST: ${N8N_HOST:-n8n.mandala-app.online}
@@ -31,13 +10,15 @@ services:
       N8N_PORT: 5678
       WEBHOOK_URL: https://${N8N_HOST:-n8n.mandala-app.online}/
       
-      # База данных PostgreSQL
+      # База данных PostgreSQL (Yandex Managed PostgreSQL)
       DB_TYPE: postgresdb
-      DB_POSTGRESDB_HOST: postgres
-      DB_POSTGRESDB_PORT: 5432
-      DB_POSTGRESDB_DATABASE: ${POSTGRES_DB:-n8n}
-      DB_POSTGRESDB_USER: ${POSTGRES_USER:-n8n}
-      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_POSTGRESDB_HOST: ${DB_POSTGRESDB_HOST}
+      DB_POSTGRESDB_PORT: ${DB_POSTGRESDB_PORT:-6432}
+      DB_POSTGRESDB_DATABASE: ${DB_POSTGRESDB_DATABASE:-n8n}
+      DB_POSTGRESDB_USER: ${DB_POSTGRESDB_USER:-n8n}
+      DB_POSTGRESDB_PASSWORD: ${DB_POSTGRESDB_PASSWORD}
+      DB_POSTGRESDB_SSL_ENABLED: true
+      DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED: false
       
       # Безопасность
       N8N_BASIC_AUTH_ACTIVE: false
@@ -60,6 +41,7 @@ services:
     volumes:
       - n8n_data:/home/node/.n8n
       - /opt/n8n/custom-files:/files
+      - /home/node/.n8n-files:/home/node/.n8n-files:ro
     networks:
       - n8n-network
     healthcheck:
@@ -105,8 +87,6 @@ services:
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
 volumes:
-  postgres_data:
-    driver: local
   n8n_data:
     driver: local
   certbot_conf:

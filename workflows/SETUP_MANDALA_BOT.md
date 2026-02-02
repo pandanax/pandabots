@@ -8,7 +8,7 @@
 
 - ✅ **Специализация:** Эксперт по созданию персональных мандал
 - ✅ **История диалога:** Помнит контекст разговора для каждого пользователя
-- ✅ **RAG (База знаний):** Использует знания о мандалах из `rags/m1`
+- ✅ **RAG (База знаний):** Использует знания о мандалах из `rags/mandala-bot-advanced/`
 - ✅ **Персонализация:** Рассчитывает мандалы по дате рождения и имени
 - ✅ **Инструкции:** Дает пошаговые инструкции как рисовать мандалу
 - ✅ **Multi-user:** Отдельная история для каждого пользователя
@@ -20,60 +20,90 @@
 1. **PostgreSQL** - для хранения истории (уже есть на сервере!)
 2. **DeepSeek API ключ** (уже есть)
 3. **Telegram Bot** (уже настроен: MandalaBot)
-4. **База знаний** - файл `rags/m1` (уже есть)
+4. **База знаний** - файлы в `rags/mandala-bot-advanced/` (уже есть)
 
 ---
 
 ## 🗄️ Шаг 1: Создать таблицу в PostgreSQL
 
-### 1.1 Подключиться к PostgreSQL
+⚠️ **Используем Yandex Managed PostgreSQL!**
+
+### 1.1 Создать таблицу через YC CLI
 
 ```bash
-# SSH на сервер
-ssh ubuntu@<server-ip>
+# Локально (с твоего компьютера)
+cd terraform
 
-# Войти в PostgreSQL контейнер
-docker exec -it n8n-postgres psql -U n8n -d n8n
-```
+# Получить ID кластера
+CLUSTER_ID=$(terraform output -raw postgres_cluster_id)
 
-### 1.2 Создать таблицу для истории
-
-```sql
+# Создать таблицу
+yc managed-postgresql cluster execute \
+  --id $CLUSTER_ID \
+  --database n8n \
+  --user n8n \
+  << 'EOF'
 CREATE TABLE IF NOT EXISTS chat_history (
     id SERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
-    role VARCHAR(20) NOT NULL, -- 'user' или 'assistant'
+    role VARCHAR(20) NOT NULL,
     content TEXT NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    INDEX idx_user_created (user_id, created_at DESC)
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
--- Проверка
-\dt chat_history
-SELECT * FROM chat_history LIMIT 1;
+CREATE INDEX IF NOT EXISTS idx_user_created ON chat_history(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_id ON chat_history(user_id);
+EOF
+```
+
+### 1.2 Проверить что таблица создана
+
+```bash
+# Список таблиц
+yc managed-postgresql cluster execute \
+  --id $CLUSTER_ID \
+  --database n8n \
+  --user n8n \
+  -c "\dt"
+
+# Структура таблицы
+yc managed-postgresql cluster execute \
+  --id $CLUSTER_ID \
+  --database n8n \
+  --user n8n \
+  -c "\d chat_history"
 ```
 
 ### 1.3 (Опционально) Очистить старые сообщения
 
-```sql
--- Функция для автоматической очистки старых сообщений (старше 30 дней)
-CREATE OR REPLACE FUNCTION cleanup_old_messages()
-RETURNS void AS $$
-BEGIN
-    DELETE FROM chat_history 
-    WHERE created_at < NOW() - INTERVAL '30 days';
-END;
-$$ LANGUAGE plpgsql;
+```bash
+# Удалить сообщения старше 30 дней
+yc managed-postgresql cluster execute \
+  --id $CLUSTER_ID \
+  --database n8n \
+  --user n8n \
+  -c "DELETE FROM chat_history WHERE created_at < NOW() - INTERVAL '30 days';"
 
--- Можно вызвать вручную или настроить cron
-SELECT cleanup_old_messages();
+# Очистить историю конкретного пользователя
+yc managed-postgresql cluster execute \
+  --id $CLUSTER_ID \
+  --database n8n \
+  --user n8n \
+  -c "DELETE FROM chat_history WHERE user_id = 123456789;"
+
+# Полная очистка таблицы
+yc managed-postgresql cluster execute \
+  --id $CLUSTER_ID \
+  --database n8n \
+  --user n8n \
+  -c "TRUNCATE TABLE chat_history;"
 ```
 
 ---
 
 ## 🔑 Шаг 2: Настроить Credentials в n8n
 
-### 2.1 PostgreSQL Credentials
+### 2.1 PostgreSQL Credentials (Yandex Managed PostgreSQL)
 
 1. n8n → **Settings** → **Credentials** → **Add Credential**
 2. Выбери **"PostgreSQL"**
@@ -81,12 +111,24 @@ SELECT cleanup_old_messages();
 
 ```
 Credential Name: PostgreSQL
-Host: postgres  (имя контейнера в Docker Compose)
+Host: <POSTGRES_HOST из terraform output>
 Database: n8n
 User: n8n
-Password: <POSTGRES_PASSWORD из deploy/.env>
-Port: 5432
-SSL: Disable (внутри Docker network не нужен)
+Password: <POSTGRES_PASSWORD из terraform/terraform.tfvars>
+Port: 6432
+SSL: Enable
+```
+
+**Как получить Host:**
+```bash
+cd terraform
+terraform output postgres_host
+# Вернет: c-xxxxxxxxx.rw.mdb.yandexcloud.net
+```
+
+**Где взять Password:**
+```bash
+cat terraform/terraform.tfvars | grep postgres_password
 ```
 
 4. **Test Connection** → должно быть OK
@@ -111,30 +153,42 @@ API Key: <ТВОЙ_DEEPSEEK_API_KEY>
 
 ## 📂 Шаг 3: Подготовить базу знаний (RAG)
 
-База знаний уже есть в `rags/m1`, но нужно указать путь в workflow.
+База знаний уже есть в `rags/mandala-bot-advanced/` и загружена на сервер!
+
+### Структура базы знаний:
+
+```
+rags/mandala-bot-advanced/
+  ├── m1              - Основные знания о мандалах
+  ├── m2              - Алгоритм рисования
+  ├── knowledge.txt   - Объединённый файл (используется в workflow)
+  └── README.md       - Документация
+```
 
 ### В узле "Read Knowledge Base":
 
-1. Открой workflow
-2. Найди узел **"Read Knowledge Base"**
-3. В параметрах укажи путь:
+Путь уже настроен на сервере:
 
 ```
-File Path: /data/rags/m1
+File Path: /home/node/.n8n-files/rags/mandala-bot-advanced/knowledge.txt
 ```
 
-Или используй абсолютный путь:
-```
-File Path: /Users/pandanax/dev/n8n/rags/m1
-```
+⚠️ **Важно:** Файлы уже загружены на сервер с правильными правами!
 
-⚠️ **Важно:** Путь должен быть доступен из n8n контейнера!
+### Как обновить базу знаний:
 
-### Альтернатива: Встроить знания напрямую
+1. Отредактируй локально `rags/mandala-bot-advanced/m1` или `m2`
+2. Пересобери объединенный файл:
+   ```bash
+   cat rags/mandala-bot-advanced/m1 rags/mandala-bot-advanced/m2 > rags/mandala-bot-advanced/knowledge.txt
+   ```
+3. Загрузи на сервер:
+   ```bash
+   scp rags/mandala-bot-advanced/knowledge.txt ubuntu@84.252.137.46:/tmp/
+   ssh ubuntu@84.252.137.46 "sudo mv /tmp/knowledge.txt /home/node/.n8n-files/rags/mandala-bot-advanced/ && sudo chown 1000:1000 /home/node/.n8n-files/rags/mandala-bot-advanced/knowledge.txt"
+   ```
 
-Если путь не работает, можешь встроить знания в System Prompt:
-1. Скопируй содержимое `rags/m1`
-2. Вставь в узел "Build AI Context" в системную инструкцию
+Подробнее см. `rags/mandala-bot-advanced/README.md`
 
 ---
 
@@ -173,7 +227,7 @@ File Path: /Users/pandanax/dev/n8n/rags/m1
 
 ```javascript
 temperature: 0.8       // Креативность (0.0-1.5)
-maxTokens: 2000        // Макс длина ответа (для мандал нужно больше)
+maxTokens: 1000        // Макс длина ответа (ограничено для Telegram, лимит 4096 символов)
 baseURL: https://api.deepseek.com
 ```
 
@@ -278,6 +332,7 @@ n8n автоматически зарегистрирует webhook!
 - Обрабатывает весь контекст
 - Генерирует ответ специалиста
 - temperature: 0.8 (баланс между точностью и креативностью)
+- max_tokens: 1000 (ограничено для Telegram, лимит 4096 символов на сообщение)
 
 **4. Save to History**
 - Сохраняет ОБА сообщения: от user и от assistant
@@ -309,9 +364,9 @@ n8n автоматически зарегистрирует webhook!
 
 ```
 Решение:
-1. Проверь путь к файлу rags/m1
-2. Используй абсолютный путь
-3. Или встрой знания прямо в System Prompt
+1. Проверь путь к файлу на сервере: /home/node/.n8n-files/rags/mandala-bot-advanced/knowledge.txt
+2. Проверь что файл существует: ssh ubuntu@84.252.137.46 "sudo cat /home/node/.n8n-files/rags/mandala-bot-advanced/knowledge.txt | head -10"
+3. Проверь права доступа: должен быть доступ для чтения
 ```
 
 ### Проблема 4: Бот не помнит историю
@@ -466,19 +521,16 @@ cat chat_history_backup.sql | docker exec -i n8n-postgres psql -U n8n -d n8n
 
 ## 📚 База знаний (RAG)
 
-Текущая база знаний в `rags/m1` содержит:
-- Что такое мандалы
-- Типы мандал
-- Персональные мандалы по дате рождения
-- Нумерологический метод расчета
-- Астрологические мандалы
-- Цвета и их значения
+Текущая база знаний в `rags/mandala-bot-advanced/` содержит:
+- **m1**: Что такое мандалы, типы, персональные мандалы по дате рождения, нумерологический и астрологический методы
+- **m2**: Алгоритм рисования мандалы, геометрические правила, законы классической мандалы
+- **knowledge.txt**: Объединённый файл для использования в workflow
 
 ### Обновление базы знаний:
 
-1. Отредактируй файл `rags/m1`
-2. Деактивируй workflow
-3. Активируй заново (или просто продолжи - обновится при следующем сообщении)
+1. Отредактируй файл `rags/mandala-bot-advanced/m1` или `m2`
+2. Пересобери и загрузи на сервер (см. раздел "Шаг 3" выше)
+3. Деактивируй workflow и активируй заново
 
 ---
 

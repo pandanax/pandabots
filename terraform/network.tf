@@ -16,7 +16,7 @@ resource "yandex_vpc_subnet" "n8n_subnet" {
 # Static external IP
 resource "yandex_vpc_address" "n8n_external_ip" {
   name = "n8n-external-ip"
-  
+
   external_ipv4_address {
     zone_id = var.zone
   }

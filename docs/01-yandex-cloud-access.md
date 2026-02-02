@@ -34,12 +34,49 @@ Authorized Key:
 
 ## Профили yc CLI
 
-Активный профиль: `pandanax`
+В проекте настроены **два профиля**:
 
-Просмотр конфигурации:
+| Профиль | Тип | Когда использовать |
+|---------|-----|-------------------|
+| **`pandanax`** | Личный OAuth | ✅ SSH к VM (OS Login), интерактивные команды |
+| **`sa-n8n-bot`** | Service Account | ✅ Terraform, автоматизация, скрипты |
+
+### Переключение между профилями
+
 ```bash
-yc config list
+# Посмотреть список профилей (ACTIVE = текущий)
 yc config profile list
+
+# Переключиться на личный (для SSH)
+yc config profile activate pandanax
+
+# Переключиться на service account (для Terraform)
+yc config profile activate sa-n8n-bot
+
+# Проверить текущий профиль
+yc config list
+```
+
+### Правила использования
+
+**Для SSH к VM через OS Login:**
+- ⚠️ **ОБЯЗАТЕЛЬНО** используй профиль `pandanax`
+- Service account не может подключиться (нет SSH ключа в OS Login)
+- Перед любой SSH командой: `yc config profile activate pandanax`
+
+**Для Terraform операций:**
+- Можно использовать `sa-n8n-bot` (рекомендуется) или `pandanax`
+- Service account - это правильная практика для автоматизации
+
+**Пример:**
+```bash
+# SSH - используй pandanax
+yc config profile activate pandanax
+yc compute ssh --name n8n-server
+
+# Terraform - используй sa-n8n-bot
+yc config profile activate sa-n8n-bot
+cd terraform && terraform apply
 ```
 
 ## Авторизация для AI агента
@@ -85,16 +122,12 @@ yc compute instance list
 # Список ВМ
 yc compute instance list
 
-# Создать ВМ
-yc compute instance create \
-  --name <name> \
-  --zone ru-central1-b \
-  --platform standard-v3 \
-  --cores 2 \
-  --memory 4 \
-  --create-boot-disk image-folder-id=standard-images,image-family=ubuntu-2204-lts,size=20 \
-  --network-interface subnet-name=default-ru-central1-b,nat-ip-version=ipv4 \
-  --ssh-key ~/.ssh/id_rsa.pub
+# Подключение к ВМ через OS Login
+yc compute ssh --name n8n-server
+yc compute ssh --id <instance-id>
+
+# Выполнение команды на ВМ
+yc compute ssh --name n8n-server -- "command"
 
 # Получить информацию о ВМ
 yc compute instance get <instance-id>
@@ -105,9 +138,43 @@ yc compute instance start <instance-id>
 # Остановить ВМ
 yc compute instance stop <instance-id>
 
+# Перезагрузить ВМ
+yc compute instance restart <instance-id>
+
 # Удалить ВМ
 yc compute instance delete <instance-id>
 ```
+
+## OS Login
+
+В проекте настроен **OS Login** для централизованного управления SSH доступом.
+
+**Что это дает:**
+- Подключение через `yc compute ssh` без знания IP адреса
+- Управление доступом через IAM роли
+- Автоматическое создание пользователей
+- Audit логи подключений
+
+**Команды OS Login:**
+
+```bash
+# Список пользователей с OS Login доступом
+yc organization-manager organization list-access-bindings <org-id> | grep osLogin
+
+# Добавить SSH ключ для OS Login
+yc organization-manager oslogin user-ssh-key create \
+  --organization-id <org-id> \
+  --subject-id <user-id> \
+  --name "my-laptop" \
+  --data "$(cat ~/.ssh/id_ed25519.pub)"
+
+# Список SSH ключей
+yc organization-manager oslogin user-ssh-key list \
+  --organization-id <org-id> \
+  --subject-id <user-id>
+```
+
+**Подробнее:** См. [OS_LOGIN_GUIDE.md](guides/OS_LOGIN_GUIDE.md)
 
 ## Примечания
 

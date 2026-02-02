@@ -25,12 +25,21 @@ resource "yandex_compute_instance" "n8n_vm" {
   }
 
   metadata = {
-    ssh-keys = "${var.ssh_user}:${file(var.ssh_public_key_path)}"
     user-data = templatefile("${path.module}/cloud-init.yaml", {
-      ssh_user       = var.ssh_user
-      ssh_public_key = file(var.ssh_public_key_path)
-      domain_name    = var.domain_name
+      ssh_user        = var.ssh_user
+      ssh_public_key  = file(var.ssh_public_key_path)
+      domain_name     = var.domain_name
+      ubuntu_password = var.ubuntu_password
     })
+    serial-port-enable = "1"    # Включить serial console
+    enable-oslogin     = "true" # Включить OS Login!
+  }
+
+  metadata_options {
+    gce_http_endpoint    = 1
+    gce_http_token       = 1
+    aws_v1_http_endpoint = 1
+    aws_v1_http_token    = 2
   }
 
   scheduling_policy {

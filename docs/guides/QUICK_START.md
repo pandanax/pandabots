@@ -17,17 +17,54 @@
 ### Доступ к n8n
 Просто открой: https://n8n.mandala-app.online
 
-### SSH на сервер
-```bash
-ssh ubuntu@84.252.137.46
-```
+### Работа с сервером
 
-### Управление контейнерами
+✅ **SSH через OS Login (рекомендуется):**
+
+⚠️ **ВАЖНО:** Используй профиль `pandanax` для SSH!
+
 ```bash
+# Проверить текущий профиль
+yc config profile list  # ACTIVE = текущий
+
+# Переключиться на нужный профиль (если нужно)
+yc config profile activate pandanax
+
+# Подключение к серверу
+yc compute ssh --name n8n-server
+
+# На сервере:
 cd /opt/n8n
 docker compose ps              # Статус
 docker compose logs -f n8n     # Логи
 docker compose restart n8n     # Перезапуск
+```
+
+**Выполнение команд удаленно:**
+```bash
+# ВАЖНО: сначала переключись на pandanax!
+yc config profile activate pandanax
+
+# Статус контейнеров
+yc compute ssh --name n8n-server -- "cd /opt/n8n && docker compose ps"
+
+# Логи n8n (последние 50 строк)
+yc compute ssh --name n8n-server -- "cd /opt/n8n && docker compose logs --tail=50 n8n"
+
+# Перезапуск n8n
+yc compute ssh --name n8n-server -- "cd /opt/n8n && docker compose restart n8n"
+```
+
+**Если видишь ошибку "OS login info not found":**
+```bash
+# Это означает что активен неправильный профиль (sa-n8n-bot)
+yc config profile activate pandanax  # переключись на личный профиль
+yc compute ssh --name n8n-server     # теперь должно работать
+```
+
+### Альтернатива: Прямой SSH (для пользователя ubuntu)
+```bash
+ssh ubuntu@84.252.137.46  # Требуется SSH ключ в cloud-init
 ```
 
 ### Terraform изменения
