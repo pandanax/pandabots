@@ -500,6 +500,106 @@ Telegram → Extract Data → Load History (PostgreSQL) + RAG Knowledge
 
 ---
 
+## ✅ FitBot v2 COMPLETE - С полным онбордингом
+
+**Дата:** 2026-02-02  
+**Версия:** v2 COMPLETE  
+**Файл:** `workflows/telegram-fitbot-v2-COMPLETE.json`
+
+### Что реализовано:
+
+#### 1. Два триггера
+- ✅ **Telegram Trigger** - обычные сообщения
+- ✅ **Telegram Callback Trigger** - кнопки (callback_query)
+
+#### 2. Команды
+- ✅ `/start` - начать заново (с проверкой существующих данных и кнопками подтверждения)
+- ✅ `/help` - справка
+- ✅ `/profile` - показать профиль пользователя
+
+#### 3. Полный пошаговый онбординг
+При `/start` бот последовательно собирает:
+1. **Имя** (валидация: 2-100 символов)
+2. **Возраст** (валидация: 10-120 лет)
+3. **Рост** (валидация: 100-300 см)
+4. **Вес** (валидация: 20-500 кг)
+5. **Цель** (валидация: 5-500 символов, например "хочу похудеть до 75 кг")
+
+Все данные сохраняются в таблицу `user_profiles` с полями:
+- `user_id`, `name`, `age`, `weight`, `height`, `goal`
+- `onboarding_state` - текущее состояние онбординга:
+  - `await_name` → ждет имя
+  - `await_age` → ждет возраст
+  - `await_height` → ждет рост
+  - `await_weight` → ждет вес
+  - `await_goal` → ждет цель
+  - `none` → онбординг завершен
+- `created_at`, `updated_at`
+
+#### 4. Валидация с сообщениями об ошибках
+- ❌ Если данные невалидны → бот показывает ошибку и просит ввести заново
+- ✅ Если валидны → сохраняет в БД и переходит к следующему вопросу
+
+#### 5. Проверка существующих данных
+При `/start`:
+- Если профиль **существует** → показывает inline-кнопки:
+  - ✅ "Да, удалить" → очищает `chat_history` + `user_profiles`, запускает онбординг
+  - ❌ "Отмена" → ничего не делает
+- Если профиля **нет** → сразу запускает онбординг
+
+#### 6. AI с данными профиля
+- ✅ AI получает полные данные профиля пользователя
+- ✅ Обращается к пользователю по имени
+- ✅ Учитывает возраст, рост, вес, цель в персонализированных советах
+- ✅ **Строгое ограничение тематики:** только питание, диетология, похудение
+- ✅ Max tokens увеличен до 1500
+- ✅ Интеграция с RAG knowledge base (`rags/fitbot/knowledge.txt`)
+
+#### 7. Технические детали
+- **Узлов (nodes):** 45
+- **Строк JSON:** 1079
+- **JSON:** ✅ Валидный (проверено через `python3 -m json.tool`)
+- **Валидаций:** 15 (на каждое поле + проверка состояния)
+
+### База данных:
+
+Создана таблица `user_profiles`:
+```sql
+CREATE TABLE IF NOT EXISTS user_profiles (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT UNIQUE NOT NULL,
+    name VARCHAR(255),
+    age INTEGER,
+    weight DECIMAL(5,2),
+    height INTEGER,
+    goal TEXT,
+    onboarding_state VARCHAR(50) DEFAULT 'none',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    
+    CONSTRAINT check_age CHECK (age >= 10 AND age <= 120),
+    CONSTRAINT check_weight CHECK (weight >= 20 AND weight <= 500),
+    CONSTRAINT check_height CHECK (height >= 100 AND height <= 300)
+);
+```
+
+Скрипты для создания:
+- `scripts/create-user-profiles-table.sql`
+- `scripts/create-user-profiles-table.sh`
+
+### Документация:
+- `workflows/FITBOT_V2_COMPLETE_README.md` - полная документация
+- Примеры диалогов
+- Инструкции по развертыванию
+- Troubleshooting
+
+### Следующие шаги:
+1. ✅ Создать таблицу `user_profiles` через `scripts/create-user-profiles-table.sh`
+2. ⏳ Импортировать workflow в n8n
+3. ⏳ Активировать и протестировать
+
+---
+
 ## 📝 ДЛЯ AI АГЕНТОВ
 ⚠️ **Перед началом работы прочитай [AI_AGENT_GUIDE.md](AI_AGENT_GUIDE.md)** ⚠️  
 Это главная входная точка для понимания проекта и правил работы.

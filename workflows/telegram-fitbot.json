@@ -39,13 +39,13 @@
         },
         "options": {}
       },
-      "id": "b8083d85-1889-4988-927a-8b95ab41783c",
+      "id": "0bb948c8-144d-4027-a64e-df0d12358732",
       "name": "Extract User Data",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.3,
       "position": [
-        -1280,
-        112
+        -2496,
+        -176
       ]
     },
     {
@@ -54,13 +54,13 @@
         "query": "SELECT role, content, created_at FROM chat_history WHERE user_id = {{ $json.userId }} ORDER BY created_at DESC LIMIT 10",
         "options": {}
       },
-      "id": "026da005-2f38-4b30-b81c-dce474dc80fc",
+      "id": "7d9a564a-033b-4dbf-8159-589399eb6505",
       "name": "Load Chat History",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -1088,
-        112
+        -2320,
+        -176
       ],
       "credentials": {
         "postgres": {
@@ -73,13 +73,13 @@
       "parameters": {
         "jsCode": "// Получаем результаты из PostgreSQL\nconst items = $input.all();\n\n// Получаем данные пользователя из предыдущего узла Extract User Data\nconst userData = $('Extract User Data').first().json;\n\n// Если истории нет - возвращаем пустой массив\nif (items.length === 0) {\n  return [{\n    json: {\n      history: [],\n      // Передаем данные пользователя дальше\n      userId: userData.userId,\n      chatId: userData.chatId,\n      userMessage: userData.userMessage,\n      userName: userData.userName,\n      timestamp: userData.timestamp\n    }\n  }];\n}\n\n// Форматируем историю для AI\nconst history = items.map(item => ({\n  role: item.json.role,\n  content: item.json.content,\n  created_at: item.json.created_at\n}));\n\nreturn [{\n  json: {\n    history: history,\n    // Передаем данные пользователя дальше\n    userId: userData.userId,\n    chatId: userData.chatId,\n    userMessage: userData.userMessage,\n    userName: userData.userName,\n    timestamp: userData.timestamp\n  }\n}];"
       },
-      "id": "843efadb-755a-46f4-8d75-f6f4888fdb7a",
+      "id": "b40b685a-d315-4002-8697-5cbe3415ff37",
       "name": "Format History",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -864,
-        112
+        -2112,
+        -176
       ],
       "alwaysOutputData": true,
       "onError": "continueRegularOutput"
@@ -88,26 +88,26 @@
       "parameters": {
         "jsCode": "// Получаем binary data из Read Knowledge Base\nconst item = $input.first();\n\nif (!item || !item.binary || !item.binary.data) {\n  return [{\n    json: {\n      knowledgeBase: 'База знаний не загружена'\n    }\n  }];\n}\n\n// Правильно извлекаем текст из binary data\n// В n8n binary data хранится как Buffer или base64 строка\nconst binaryData = item.binary.data;\nlet content;\n\ntry {\n  if (binaryData.data) {\n    // Если есть поле data, это base64\n    content = Buffer.from(binaryData.data, 'base64').toString('utf-8');\n  } else if (Buffer.isBuffer(binaryData)) {\n    // Если это уже Buffer\n    content = binaryData.toString('utf-8');\n  } else {\n    content = 'Не удалось прочитать базу знаний';\n  }\n} catch (error) {\n  content = 'Ошибка чтения базы знаний: ' + error.message;\n}\n\nreturn [{\n  json: {\n    knowledgeBase: content\n  }\n}];"
       },
-      "id": "e2c02ac2-083f-4577-9106-0d329b877a97",
+      "id": "c5d478d9-363a-4947-a699-a24baefb06e3",
       "name": "Load RAG Knowledge",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1088,
-        320
+        -2224,
+        144
       ]
     },
     {
       "parameters": {
         "filePath": "/home/node/.n8n-files/rags/fitbot/knowledge.txt"
       },
-      "id": "dbdea03b-01a1-491c-9f29-ec850f81f8c4",
+      "id": "52749c7f-7c8e-489d-9400-50366eb31f83",
       "name": "Read Knowledge Base",
       "type": "n8n-nodes-base.readBinaryFile",
       "typeVersion": 1,
       "position": [
-        -1296,
-        320
+        -2432,
+        144
       ]
     },
     {
@@ -116,26 +116,26 @@
         "combinationMode": "mergeByPosition",
         "options": {}
       },
-      "id": "f1ad6683-e344-4a4f-a650-7c7ac18965f3",
+      "id": "98a12dbb-e1e8-4b98-b138-ea3d6b71f6e1",
       "name": "Merge Branches",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 2.1,
       "position": [
-        -864,
-        224
+        -1936,
+        0
       ]
     },
     {
       "parameters": {
-        "jsCode": "// Получаем данные из Merge - он объединяет все в один item\nconst mergedItem = $input.first().json;\n\n// Merge объединяет объекты, поэтому все поля должны быть на верхнем уровне\nconst userId = mergedItem.userId;\nconst chatId = mergedItem.chatId;\nconst userMessage = mergedItem.userMessage;\nconst userName = mergedItem.userName;\nconst timestamp = mergedItem.timestamp;\nconst knowledge = mergedItem.knowledgeBase || 'База знаний не загружена';\nconst history = mergedItem.history || [];\n\n// Проверяем что данные пользователя найдены\nif (!userId || !userMessage) {\n  throw new Error('Не найдены данные пользователя. Merged data: ' + JSON.stringify(mergedItem, null, 2));\n}\n\n// Реверсируем историю (сначала старые сообщения)\nconst reversedHistory = Array.isArray(history) ? [...history].reverse() : [];\n\n// Формируем массив сообщений для DeepSeek\nconst messages = [\n  {\n    role: 'system',\n    content: `Ты профессиональный консультант по здоровому питанию и коррекции пищевого поведения.\n\nТвоя задача - помогать клиентам:\n1. Понять основы правильного питания и физиологии похудения\n2. Разработать индивидуальный план питания\n3. Скорректировать пищевое поведение\n4. Достичь целей по снижению веса безопасно и эффективно\n5. Развенчать мифы о диетах и похудении\n\nТы используешь только научно обоснованные методы:\n- Дробное питание (5-6 раз в день)\n- Умеренный дефицит калорий (без голодания)\n- Правильное распределение БЖУ\n- Учёт гликемического индекса\n- Поддержание высокого метаболизма\n\nБудь внимательным, задавай уточняющие вопросы:\n- Текущий вес, рост, возраст, пол\n- Целевой вес и сроки\n- Режим дня и физическая активность\n- Пищевые привычки и предпочтения\n- Противопоказания и заболевания\n\nОбъясняй понятно, с научным обоснованием, но без перегрузки терминами.\nМотивируй, поддерживай, помогай выстроить правильные привычки.\n\n=== НАУЧНАЯ БАЗА ЗНАНИЙ ===\n${knowledge}\n=== КОНЕЦ БАЗЫ ЗНАНИЙ ===\n\n⚠️ КРИТИЧЕСКИ ВАЖНО - ОГРАНИЧЕНИЯ TELEGRAM:\n- Telegram имеет лимит 4096 символов на сообщение\n- Твой ответ должен быть КРАТКИМ и ЛАКОНИЧНЫМ\n- Максимум 2500-3000 символов (включая форматирование)\n- НЕ пиши длинные простыни текста\n- Структурируй ответ списками и короткими абзацами\n- Если тема большая - разбей на несколько коротких сообщений по сути\n- Говори по делу, без воды\n\nОтвечай на русском языке, используй форматирование Markdown для структурирования информации.\nВсегда опирайся на научные данные из базы знаний.`\n  }\n];\n\n// Добавляем историю (если есть)\nreversedHistory.forEach(msg => {\n  messages.push({\n    role: msg.role,\n    content: msg.content\n  });\n});\n\n// Добавляем текущее сообщение\nmessages.push({\n  role: 'user',\n  content: userMessage\n});\n\nreturn [\n  {\n    json: {\n      messages: messages,\n      userId: userId,\n      chatId: chatId,\n      userName: userName,\n      userMessage: userMessage,\n      timestamp: timestamp\n    }\n  }\n];"
+        "jsCode": "// Получаем данные из Merge - он объединяет все в один item\nconst mergedItem = $input.first().json;\n\n// Merge объединяет объекты, поэтому все поля должны быть на верхнем уровне\nconst userId = mergedItem.userId;\nconst chatId = mergedItem.chatId;\nconst userMessage = mergedItem.userMessage;\nconst userName = mergedItem.userName;\nconst timestamp = mergedItem.timestamp;\nconst knowledge = mergedItem.knowledgeBase || 'База знаний не загружена';\nconst history = mergedItem.history || [];\n\n// Проверяем что данные пользователя найдены\nif (!userId || !userMessage) {\n  throw new Error('Не найдены данные пользователя. Merged data: ' + JSON.stringify(mergedItem, null, 2));\n}\n\n// Реверсируем историю (сначала старые сообщения)\nconst reversedHistory = Array.isArray(history) ? [...history].reverse() : [];\n\n// Формируем массив сообщений для DeepSeek\nconst messages = [\n  {\n    role: 'system',\n    content: `Ты профессиональный консультант по здоровому питанию и коррекции пищевого поведения.\n\nТвоя задача - помогать клиентам:\n1. Понять основы правильного питания и физиологии похудения\n2. Разработать индивидуальный план питания\n3. Скорректировать пищевое поведение\n4. Достичь целей по снижению веса безопасно и эффективно\n5. Развенчать мифы о диетах и похудении\n\nТы используешь только научно обоснованные методы:\n- Дробное питание (5-6 раз в день)\n- Умеренный дефицит калорий (без голодания)\n- Правильное распределение БЖУ\n- Учёт гликемического индекса\n- Поддержание высокого метаболизма\n\nБудь внимательным, задавай уточняющие вопросы:\n- Текущий вес, рост, возраст, пол\n- Целевой вес и сроки\n- Режим дня и физическая активность\n- Пищевые привычки и предпочтения\n- Противопоказания и заболевания\n\nОбъясняй понятно, с научным обоснованием, с терминами.\nМотивируй, поддерживай, помогай выстроить правильные привычки.\n\n=== НАУЧНАЯ БАЗА ЗНАНИЙ ===\n${knowledge}\n=== КОНЕЦ БАЗЫ ЗНАНИЙ ===\n\n⚠️ КРИТИЧЕСКИ ВАЖНО - ОГРАНИЧЕНИЯ TELEGRAM:\n- Telegram имеет лимит 4096 символов на сообщение Твой ответ должен быть КРАТКИМ и ЛАКОНИЧНЫМ (старайся укладываться в 2000 символов)\n- Говори по делу, без воды\n\n- Отвечай на русском языке\n- Структурируй ответ списками и короткими абзацами\n- Используй эмодзи\n- СТРОГО Используй ТОЛЬКО этот синтаксис для текста:  \n  1) Обычный текст\n  2) Жирный (2 звездочки) **текст**\n  3) Курсив (2 подчеркивания)  __текст__\n  4) Ссылки (квадратные и круглые скобки) [текст](ссылка)\n  5) Таблицы оборачивай в три обратных апострофа чтобы получить моноширинный текст\n`\n  }\n];\n\n// Добавляем историю (если есть)\nreversedHistory.forEach(msg => {\n  messages.push({\n    role: msg.role,\n    content: msg.content\n  });\n});\n\n// Добавляем текущее сообщение\nmessages.push({\n  role: 'user',\n  content: userMessage\n});\n\nreturn [\n  {\n    json: {\n      messages: messages,\n      userId: userId,\n      chatId: chatId,\n      userName: userName,\n      userMessage: userMessage,\n      timestamp: timestamp\n    }\n  }\n];"
       },
-      "id": "72b2d1ca-0b1c-49d0-aa3b-67216cdca62e",
+      "id": "8176f9fd-19e1-424a-8e9d-8d19fbaf1565",
       "name": "Build AI Context",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -640,
-        224
+        -1728,
+        0
       ]
     },
     {
@@ -154,18 +154,74 @@
         },
         "columns": {
           "mappingMode": "autoMapInputData",
-          "matchingColumns": [],
-          "schema": []
+          "value": {},
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "user_id",
+              "displayName": "user_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "role",
+              "displayName": "role",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "content",
+              "displayName": "content",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
         },
         "options": {}
       },
-      "id": "376bbd4e-6b7b-43ab-b0c3-d4d3f7b4aa9c",
+      "id": "6e906f77-cde0-415e-bb6a-ae54e6ca7509",
       "name": "Save to History",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        208,
-        0
+        -928,
+        -176
       ],
       "credentials": {
         "postgres": {
@@ -181,13 +237,13 @@
         ],
         "additionalFields": {}
       },
-      "id": "de372c7c-bb43-4f11-a5b9-7aebe06ec629",
+      "id": "34d48f3c-5365-4de3-98bf-b5a25b08465f",
       "name": "Telegram Trigger",
       "type": "n8n-nodes-base.telegramTrigger",
       "typeVersion": 1.1,
       "position": [
-        -1520,
-        224
+        -2736,
+        16
       ],
       "webhookId": "fitbot-telegram-trigger",
       "credentials": {
@@ -208,13 +264,13 @@
         "jsonBody": "={\n  \"model\": \"deepseek-chat\",\n  \"messages\": {{ JSON.stringify($json.messages) }},\n  \"max_tokens\": 1000,\n  \"temperature\": 0.7\n}",
         "options": {}
       },
-      "id": "b2e9aada-d051-4ad8-9f60-275009e58b24",
+      "id": "34ff775e-f91a-45a4-82da-3ac099380092",
       "name": "DeepSeek AI",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -416,
-        224
+        -1520,
+        0
       ],
       "credentials": {
         "openAiApi": {
@@ -227,26 +283,26 @@
       "parameters": {
         "jsCode": "const aiResponse = $input.first().json;\nconst context = $('Build AI Context').first().json;\n\n// Извлекаем ответ от DeepSeek\nconst response = aiResponse.choices[0].message.content;\n\nreturn [\n  {\n    json: {\n      userId: context.userId,\n      chatId: context.chatId,\n      userName: context.userName,\n      userMessage: context.userMessage,\n      response: response,\n      timestamp: context.timestamp\n    }\n  }\n];"
       },
-      "id": "a35d194b-58ee-49ef-8467-547fdb90be8e",
+      "id": "68621a3e-a3b7-40c5-a9dd-07a75fa64bb6",
       "name": "Format Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -208,
-        224
+        -1312,
+        0
       ]
     },
     {
       "parameters": {
         "jsCode": "const data = $input.first().json;\nconst now = new Date().toISOString();\n\n// Создаем 2 записи для PostgreSQL\nreturn [\n  {\n    json: {\n      user_id: data.userId,\n      role: 'user',\n      content: data.userMessage,\n      created_at: data.timestamp\n    }\n  },\n  {\n    json: {\n      user_id: data.userId,\n      role: 'assistant',\n      content: data.response,\n      created_at: now\n    }\n  }\n];"
       },
-      "id": "4f50eeb4-68be-4759-83da-a68cb56bd50c",
+      "id": "4d6e839c-2891-4398-be4f-b16f72881935",
       "name": "Prepare for Save",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        0,
-        0
+        -1136,
+        -176
       ]
     },
     {
@@ -258,13 +314,13 @@
           "reply_to_message_id": "={{ $('Telegram Trigger').item.json.message.message_id }}"
         }
       },
-      "id": "30358b18-382f-4469-8d60-77d3d819abe3",
+      "id": "2ed96b35-7229-4d84-95aa-223a15d7d66c",
       "name": "Send AI Reply",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.1,
       "position": [
-        0,
-        320
+        -1136,
+        176
       ],
       "webhookId": "0364d411-3c8b-4130-bfa9-b281761b67b6",
       "credentials": {
@@ -414,24 +470,17 @@
     "executionOrder": "v1",
     "availableInMCP": false
   },
-  "versionId": "6d86aaa2-3db5-42ab-92c7-509f8abcd76b",
+  "versionId": "c0e99fe6-f4b9-4acf-b721-f4fa33471a4c",
   "meta": {
-    "templateCredsSetupCompleted": true,
     "instanceId": "53814074f06b7b5c9f98d5e8e8070a4c29be85d0115b2eb5224f97008ecdcc35"
   },
-  "id": "GKfW3GIkNl5uIDRlS0Y_e",
+  "id": "MY4X7UFWG84HnDk7jOD0E",
   "tags": [
     {
-      "updatedAt": "2026-02-01T19:01:14.892Z",
-      "createdAt": "2026-02-01T19:01:14.892Z",
-      "id": "lZccS9NCfAhH4WAP",
-      "name": "telegram"
-    },
-    {
-      "updatedAt": "2026-02-01T19:01:14.888Z",
-      "createdAt": "2026-02-01T19:01:14.888Z",
-      "id": "1u5kaGx7wSYdlOVY",
-      "name": "ai"
+      "updatedAt": "2026-02-01T21:30:27.780Z",
+      "createdAt": "2026-02-01T21:30:27.780Z",
+      "id": "v5xRLxl7g28HYena",
+      "name": "fitbot"
     },
     {
       "updatedAt": "2026-02-01T19:01:14.897Z",
@@ -440,22 +489,28 @@
       "name": "deepseek"
     },
     {
-      "name": "fitbot",
-      "id": "v5xRLxl7g28HYena",
-      "updatedAt": "2026-02-01T21:30:27.780Z",
-      "createdAt": "2026-02-01T21:30:27.780Z"
+      "updatedAt": "2026-02-01T19:04:54.613Z",
+      "createdAt": "2026-02-01T19:04:54.613Z",
+      "id": "R3B9ivxlxJex91qb",
+      "name": "history"
     },
     {
-      "name": "fitness",
-      "id": "2OMN5CimtN7RzkNk",
-      "updatedAt": "2026-02-01T21:30:27.794Z",
-      "createdAt": "2026-02-01T21:30:27.794Z"
+      "updatedAt": "2026-02-01T19:01:14.892Z",
+      "createdAt": "2026-02-01T19:01:14.892Z",
+      "id": "lZccS9NCfAhH4WAP",
+      "name": "telegram"
     },
     {
-      "name": "nutrition",
-      "id": "e2Gc4sAfHytzjbUi",
       "updatedAt": "2026-02-01T21:30:27.795Z",
-      "createdAt": "2026-02-01T21:30:27.795Z"
+      "createdAt": "2026-02-01T21:30:27.795Z",
+      "id": "e2Gc4sAfHytzjbUi",
+      "name": "nutrition"
+    },
+    {
+      "updatedAt": "2026-02-01T21:30:27.794Z",
+      "createdAt": "2026-02-01T21:30:27.794Z",
+      "id": "2OMN5CimtN7RzkNk",
+      "name": "fitness"
     },
     {
       "updatedAt": "2026-02-01T19:04:54.619Z",
@@ -464,10 +519,10 @@
       "name": "rag"
     },
     {
-      "updatedAt": "2026-02-01T19:04:54.613Z",
-      "createdAt": "2026-02-01T19:04:54.613Z",
-      "id": "R3B9ivxlxJex91qb",
-      "name": "history"
+      "updatedAt": "2026-02-01T19:01:14.888Z",
+      "createdAt": "2026-02-01T19:01:14.888Z",
+      "id": "1u5kaGx7wSYdlOVY",
+      "name": "ai"
     }
   ]
 }
