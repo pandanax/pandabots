@@ -215,11 +215,12 @@ docker compose logs -f n8n
 # Nginx логи
 docker compose logs -f nginx
 
-# PostgreSQL логи
-docker compose logs -f postgres
-
 # Все логи
 docker compose logs -f
+
+# PostgreSQL логи (Managed PostgreSQL)
+# Смотреть через Yandex Cloud Console:
+# https://console.cloud.yandex.ru/folders/b1g8dn4l2a7t5r1g7i1k/managed-postgresql/cluster/
 ```
 
 ### Использование ресурсов
@@ -233,26 +234,37 @@ docker system df
 
 ## Резервное копирование
 
-### Автоматический бэкап (рекомендуется настроить)
-Создать cron job:
+### PostgreSQL (Managed PostgreSQL)
+
+**Yandex Cloud автоматически создаёт бэкапы Managed PostgreSQL каждый день.**
+
+Ручной бэкап:
 ```bash
-0 3 * * * cd /opt/n8n && docker compose exec -T postgres pg_dump -U n8n n8n | gzip > /backup/n8n-$(date +\%Y\%m\%d).sql.gz
+cd /Users/pandanax/dev/n8n/scripts
+
+# Использовать helper-скрипт для бэкапа
+yc compute ssh --name n8n-server -- "
+PGPASSWORD='6YURjrx7UP5VarHZ8VJSM7pCGD2khVPT' \
+pg_dump -h rc1b-fu6im376hu9oc1lb.mdb.yandexcloud.net -p 6432 -U n8n -d n8n
+" > n8n_backup_$(date +%Y%m%d).sql
 ```
 
-### Ручной бэкап
-```bash
-# PostgreSQL
-docker compose exec postgres pg_dump -U n8n n8n > backup.sql
+### n8n данные
 
-# n8n данные
+```bash
+# Бэкап через Docker volume
 docker compose exec n8n tar czf /tmp/n8n-data.tar.gz /home/node/.n8n
 docker compose cp n8n:/tmp/n8n-data.tar.gz ./n8n-data-backup.tar.gz
 ```
 
 ### Восстановление
+
 ```bash
 # PostgreSQL
-cat backup.sql | docker compose exec -T postgres psql -U n8n n8n
+cat n8n_backup_20260206.sql | yc compute ssh --name n8n-server -- "
+PGPASSWORD='6YURjrx7UP5VarHZ8VJSM7pCGD2khVPT' \
+psql -h rc1b-fu6im376hu9oc1lb.mdb.yandexcloud.net -p 6432 -U n8n -d n8n
+"
 
 # n8n данные
 docker compose cp n8n-data-backup.tar.gz n8n:/tmp/
@@ -269,22 +281,17 @@ docker compose pull n8n
 docker compose up -d n8n
 ```
 
-### Обновление PostgreSQL
-⚠️ **ОСТОРОЖНО!** Требует бэкапа и миграции данных
+### Обновление PostgreSQL (Managed PostgreSQL)
 
-```bash
-# 1. Бэкап
-docker compose exec postgres pg_dump -U n8n n8n > backup-before-upgrade.sql
+⚠️ **Yandex Managed PostgreSQL обновляется автоматически** через консоль Yandex Cloud.
 
-# 2. Остановить
-docker compose down
+Обновление через Yandex Cloud Console:
+1. Открой https://console.cloud.yandex.ru/
+2. Managed PostgreSQL → выбери кластер
+3. Settings → PostgreSQL version
+4. Выбери новую версию и примени
 
-# 3. Изменить версию в docker-compose.yml
-# postgres:16-alpine
-
-# 4. Запустить
-docker compose up -d
-```
+**Yandex автоматически создаст бэкап перед обновлением.**
 
 ## Стоимость
 

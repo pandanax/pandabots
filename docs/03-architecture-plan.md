@@ -28,7 +28,7 @@
 
 ### Приложения
 - **n8n:** Orchestration платформа (Docker)
-- **PostgreSQL:** Основная БД (Docker)
+- **PostgreSQL:** Основная БД (Yandex Managed PostgreSQL)
 - **Nginx:** Reverse proxy + SSL (Docker)
 - **Certbot:** Автоматическое получение SSL сертификатов
 

@@ -1,39 +1,44 @@
 # 🗄️ Руководство по работе с PostgreSQL
 
-> Как работать с PostgreSQL на сервере n8n через Yandex Cloud CLI
+> Как работать с **Yandex Managed PostgreSQL** через Yandex Cloud CLI
 
 ---
 
-## ⚠️ ВАЖНО: Используй YC CLI!
+## ⚠️ ВАЖНО: Managed PostgreSQL, НЕ Docker!
 
-SSH порт 22 может быть заблокирован провайдером/VPN/файрволом. Поэтому все операции выполняются через **Yandex Cloud CLI**.
+**База данных работает как Yandex Managed PostgreSQL сервис**, а не в Docker контейнере.
 
-### Базовая команда
+### Подключение через SSH на VM
 
 ```bash
-yc compute ssh --name n8n-server --command "ВАША_КОМАНДА"
+yc compute ssh --name n8n-server
 ```
+
+Затем используй `psql` с параметрами:
+```bash
+PGPASSWORD='<пароль>' psql -h <host> -p 6432 -U n8n -d n8n
+```
+
+Пароль и хост берутся из `/Users/pandanax/dev/n8n/STATUS.md`
 
 ---
 
 ## 🔍 Проверка подключения
 
-### Проверить что PostgreSQL запущен
+### Проверить подключение к Managed PostgreSQL
 
 ```bash
-# Проверка статуса контейнера
-yc compute ssh --name n8n-server --command "docker ps | grep postgres"
-
-# Проверка здоровья PostgreSQL
-yc compute ssh --name n8n-server --command "docker exec n8n-postgres pg_isready -U n8n"
-
-# Версия PostgreSQL
-yc compute ssh --name n8n-server --command "docker exec n8n-postgres psql -U n8n -d n8n -c 'SELECT version();'"
+# Через SSH на VM
+yc compute ssh --name n8n-server -- "
+PGPASSWORD='6YURjrx7UP5VarHZ8VJSM7pCGD2khVPT' \
+psql -h rc1b-fu6im376hu9oc1lb.mdb.yandexcloud.net -p 6432 -U n8n -d n8n \
+-c 'SELECT version();'
+"
 ```
 
 Ожидаемый результат:
 ```
-n8n-postgres/var/lib/postgresql/data
+PostgreSQL 15.x on x86_64-pc-linux-gnu
 ```
 
 ---
@@ -43,8 +48,10 @@ n8n-postgres/var/lib/postgresql/data
 ### Список таблиц
 
 ```bash
-yc compute ssh --name n8n-server --command "
-docker exec n8n-postgres psql -U n8n -d n8n -c '\dt'
+yc compute ssh --name n8n-server -- "
+PGPASSWORD='6YURjrx7UP5VarHZ8VJSM7pCGD2khVPT' \
+psql -h rc1b-fu6im376hu9oc1lb.mdb.yandexcloud.net -p 6432 -U n8n -d n8n \
+-c '\dt'
 "
 ```
 
@@ -52,51 +59,51 @@ docker exec n8n-postgres psql -U n8n -d n8n -c '\dt'
 
 ```bash
 # Например, для таблицы chat_history
-yc compute ssh --name n8n-server --command "
-docker exec n8n-postgres psql -U n8n -d n8n -c '\d chat_history'
+yc compute ssh --name n8n-server -- "
+PGPASSWORD='6YURjrx7UP5VarHZ8VJSM7pCGD2khVPT' \
+psql -h rc1b-fu6im376hu9oc1lb.mdb.yandexcloud.net -p 6432 -U n8n -d n8n \
+-c '\d chat_history'
 "
 ```
 
 ### Список индексов
 
 ```bash
-yc compute ssh --name n8n-server --command "
-docker exec n8n-postgres psql -U n8n -d n8n -c '\di'
+yc compute ssh --name n8n-server -- "
+PGPASSWORD='6YURjrx7UP5VarHZ8VJSM7pCGD2khVPT' \
+psql -h rc1b-fu6im376hu9oc1lb.mdb.yandexcloud.net -p 6432 -U n8n -d n8n \
+-c '\di'
 "
 ```
 
 ---
 
-## 🆕 Создание таблицы chat_history
+## 🆕 Создание таблиц
 
-### Для Mandala Bot (история диалогов)
+### Используй скрипты из /Users/pandanax/dev/n8n/scripts/
+
+Все таблицы создаются через скрипты:
 
 ```bash
-yc compute ssh --name n8n-server --command "
-docker exec n8n-postgres psql -U n8n -d n8n << 'EOF'
-CREATE TABLE IF NOT EXISTS chat_history (
-    id SERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    role VARCHAR(20) NOT NULL,
-    content TEXT NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
+cd /Users/pandanax/dev/n8n/scripts
 
-CREATE INDEX IF NOT EXISTS idx_user_created ON chat_history(user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_user_id ON chat_history(user_id);
+# Создать таблицу chat_history
+./create-chat-history-table.sh
 
--- Проверка
-SELECT 'Table chat_history created successfully!' as status;
-\dt chat_history
-EOF
-"
+# Создать таблицу user_profiles  
+./create-user-profiles-table.sh
+
+# Создать таблицу user_locks
+./create-user-locks-table.sh
 ```
 
 ### Проверить что таблица создана
 
 ```bash
-yc compute ssh --name n8n-server --command "
-docker exec n8n-postgres psql -U n8n -d n8n -c '\d chat_history'
+yc compute ssh --name n8n-server -- "
+PGPASSWORD='6YURjrx7UP5VarHZ8VJSM7pCGD2khVPT' \
+psql -h rc1b-fu6im376hu9oc1lb.mdb.yandexcloud.net -p 6432 -U n8n -d n8n \
+-c '\d chat_history'
 "
 ```
 
@@ -104,67 +111,52 @@ docker exec n8n-postgres psql -U n8n -d n8n -c '\d chat_history'
 
 ## 📊 Работа с данными
 
+### Базовая команда (алиас для удобства)
+
+```bash
+# Создай алиас для быстрого доступа
+alias pgn8n="yc compute ssh --name n8n-server -- \"PGPASSWORD='6YURjrx7UP5VarHZ8VJSM7pCGD2khVPT' psql -h rc1b-fu6im376hu9oc1lb.mdb.yandexcloud.net -p 6432 -U n8n -d n8n\""
+```
+
 ### Просмотр данных
 
 ```bash
 # Количество записей
-yc compute ssh --name n8n-server --command "
-docker exec n8n-postgres psql -U n8n -d n8n -c 'SELECT COUNT(*) FROM chat_history;'
-"
+pgn8n -c 'SELECT COUNT(*) FROM chat_history;'
 
 # Последние 10 сообщений
-yc compute ssh --name n8n-server --command "
-docker exec n8n-postgres psql -U n8n -d n8n -c 'SELECT id, user_id, role, LEFT(content, 50) as content_preview, created_at FROM chat_history ORDER BY created_at DESC LIMIT 10;'
-"
+pgn8n -c 'SELECT id, user_id, role, LEFT(content, 50) as content_preview, created_at FROM chat_history ORDER BY created_at DESC LIMIT 10;'
 
 # Сообщения конкретного пользователя
-yc compute ssh --name n8n-server --command "
-docker exec n8n-postgres psql -U n8n -d n8n -c 'SELECT * FROM chat_history WHERE user_id = 123456789 ORDER BY created_at DESC;'
-"
+pgn8n -c 'SELECT * FROM chat_history WHERE user_id = 123456789 ORDER BY created_at DESC;'
 ```
 
 ### Вставка тестовых данных
 
 ```bash
-yc compute ssh --name n8n-server --command "
-docker exec n8n-postgres psql -U n8n -d n8n << 'EOF'
-INSERT INTO chat_history (user_id, role, content) VALUES
-  (123456789, 'user', 'Привет!'),
-  (123456789, 'assistant', 'Здравствуй! Как дела?');
-EOF
-"
+pgn8n -c "INSERT INTO chat_history (user_id, role, content) VALUES (123456789, 'user', 'Привет!'), (123456789, 'assistant', 'Здравствуй! Как дела?');"
 ```
 
 ### Обновление данных
 
 ```bash
-yc compute ssh --name n8n-server --command "
-docker exec n8n-postgres psql -U n8n -d n8n -c \"UPDATE chat_history SET content = 'Новый текст' WHERE id = 1;\"
-"
+pgn8n -c "UPDATE chat_history SET content = 'Новый текст' WHERE id = 1;"
 ```
 
 ### Удаление данных
 
 ```bash
 # Удалить конкретную запись
-yc compute ssh --name n8n-server --command "
-docker exec n8n-postgres psql -U n8n -d n8n -c 'DELETE FROM chat_history WHERE id = 1;'
-"
+pgn8n -c 'DELETE FROM chat_history WHERE id = 1;'
 
 # Удалить историю конкретного пользователя
-yc compute ssh --name n8n-server --command "
-docker exec n8n-postgres psql -U n8n -d n8n -c 'DELETE FROM chat_history WHERE user_id = 123456789;'
-"
+pgn8n -c 'DELETE FROM chat_history WHERE user_id = 123456789;'
 
 # Удалить старые записи (старше 30 дней)
-yc compute ssh --name n8n-server --command "
-docker exec n8n-postgres psql -U n8n -d n8n -c \"DELETE FROM chat_history WHERE created_at < NOW() - INTERVAL '30 days';\"
-"
+pgn8n -c "DELETE FROM chat_history WHERE created_at < NOW() - INTERVAL '30 days';"
 
 # Очистить всю таблицу
-yc compute ssh --name n8n-server --command "
-docker exec n8n-postgres psql -U n8n -d n8n -c 'TRUNCATE TABLE chat_history;'
-"
+pgn8n -c 'TRUNCATE TABLE chat_history;'
 ```
 
 ---
@@ -174,8 +166,7 @@ docker exec n8n-postgres psql -U n8n -d n8n -c 'TRUNCATE TABLE chat_history;'
 ### Топ активных пользователей
 
 ```bash
-yc compute ssh --name n8n-server --command "
-docker exec n8n-postgres psql -U n8n -d n8n << 'EOF'
+pgn8n << 'EOF'
 SELECT 
     user_id,
     COUNT(*) as total_messages,
@@ -188,14 +179,12 @@ GROUP BY user_id
 ORDER BY total_messages DESC
 LIMIT 10;
 EOF
-"
 ```
 
 ### Общая статистика
 
 ```bash
-yc compute ssh --name n8n-server --command "
-docker exec n8n-postgres psql -U n8n -d n8n << 'EOF'
+pgn8n << 'EOF'
 SELECT 
     COUNT(*) as total_messages,
     COUNT(DISTINCT user_id) as unique_users,
@@ -205,15 +194,12 @@ SELECT
     MAX(created_at) as last_message
 FROM chat_history;
 EOF
-"
 ```
 
 ### Сообщения за последние 24 часа
 
 ```bash
-yc compute ssh --name n8n-server --command "
-docker exec n8n-postgres psql -U n8n -d n8n -c \"SELECT COUNT(*) as messages_24h FROM chat_history WHERE created_at > NOW() - INTERVAL '24 hours';\"
-"
+pgn8n -c "SELECT COUNT(*) as messages_24h FROM chat_history WHERE created_at > NOW() - INTERVAL '24 hours';"
 ```
 
 ---
@@ -224,8 +210,9 @@ docker exec n8n-postgres psql -U n8n -d n8n -c \"SELECT COUNT(*) as messages_24h
 
 ```bash
 # Бекап в локальный файл
-yc compute ssh --name n8n-server --command "
-docker exec n8n-postgres pg_dump -U n8n -d n8n -t chat_history
+yc compute ssh --name n8n-server -- "
+PGPASSWORD='6YURjrx7UP5VarHZ8VJSM7pCGD2khVPT' \
+pg_dump -h rc1b-fu6im376hu9oc1lb.mdb.yandexcloud.net -p 6432 -U n8n -d n8n -t chat_history
 " > chat_history_backup_$(date +%Y%m%d_%H%M%S).sql
 
 echo "Backup saved to: chat_history_backup_$(date +%Y%m%d_%H%M%S).sql"
@@ -234,8 +221,9 @@ echo "Backup saved to: chat_history_backup_$(date +%Y%m%d_%H%M%S).sql"
 ### Бекап всей базы данных
 
 ```bash
-yc compute ssh --name n8n-server --command "
-docker exec n8n-postgres pg_dump -U n8n -d n8n
+yc compute ssh --name n8n-server -- "
+PGPASSWORD='6YURjrx7UP5VarHZ8VJSM7pCGD2khVPT' \
+pg_dump -h rc1b-fu6im376hu9oc1lb.mdb.yandexcloud.net -p 6432 -U n8n -d n8n
 " > n8n_full_backup_$(date +%Y%m%d_%H%M%S).sql
 ```
 
@@ -243,8 +231,9 @@ docker exec n8n-postgres pg_dump -U n8n -d n8n
 
 ```bash
 # Восстановить таблицу
-cat chat_history_backup_20260201_180000.sql | yc compute ssh --name n8n-server --command "
-docker exec -i n8n-postgres psql -U n8n -d n8n
+cat chat_history_backup_20260201_180000.sql | yc compute ssh --name n8n-server -- "
+PGPASSWORD='6YURjrx7UP5VarHZ8VJSM7pCGD2khVPT' \
+psql -h rc1b-fu6im376hu9oc1lb.mdb.yandexcloud.net -p 6432 -U n8n -d n8n
 "
 ```
 
@@ -256,30 +245,24 @@ docker exec -i n8n-postgres psql -U n8n -d n8n
 
 ```bash
 # Vacuum (очистка и оптимизация)
-yc compute ssh --name n8n-server --command "
-docker exec n8n-postgres psql -U n8n -d n8n -c 'VACUUM ANALYZE chat_history;'
-"
+pgn8n -c 'VACUUM ANALYZE chat_history;'
 ```
 
 ### Проверка размера таблицы
 
 ```bash
-yc compute ssh --name n8n-server --command "
-docker exec n8n-postgres psql -U n8n -d n8n << 'EOF'
+pgn8n << 'EOF'
 SELECT 
     pg_size_pretty(pg_total_relation_size('chat_history')) as total_size,
     pg_size_pretty(pg_relation_size('chat_history')) as table_size,
     pg_size_pretty(pg_indexes_size('chat_history')) as indexes_size;
 EOF
-"
 ```
 
 ### Размер всей базы данных
 
 ```bash
-yc compute ssh --name n8n-server --command "
-docker exec n8n-postgres psql -U n8n -d n8n -c 'SELECT pg_size_pretty(pg_database_size(current_database()));'
-"
+pgn8n -c 'SELECT pg_size_pretty(pg_database_size(current_database()));'
 ```
 
 ---
@@ -288,56 +271,42 @@ docker exec n8n-postgres psql -U n8n -d n8n -c 'SELECT pg_size_pretty(pg_databas
 
 ### Ошибка: "relation does not exist"
 
-Таблица не создана. Создай её:
+Таблица не создана. Используй скрипты:
 
 ```bash
-yc compute ssh --name n8n-server --command "
-docker exec n8n-postgres psql -U n8n -d n8n << 'EOF'
-CREATE TABLE IF NOT EXISTS chat_history (
-    id SERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    role VARCHAR(20) NOT NULL,
-    content TEXT NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
-EOF
-"
+cd /Users/pandanax/dev/n8n/scripts
+./create-chat-history-table.sh
 ```
 
 ### Ошибка: "FATAL: database does not exist"
 
-Проверь имя базы данных:
+Проверь что БД существует:
 
 ```bash
-yc compute ssh --name n8n-server --command "
-docker exec n8n-postgres psql -U n8n -l
+yc compute ssh --name n8n-server -- "
+PGPASSWORD='6YURjrx7UP5VarHZ8VJSM7pCGD2khVPT' \
+psql -h rc1b-fu6im376hu9oc1lb.mdb.yandexcloud.net -p 6432 -U n8n -l
 "
 ```
 
-### Проверка логов PostgreSQL
+### Проверка доступности Managed PostgreSQL
 
 ```bash
-yc compute ssh --name n8n-server --command "
-docker logs n8n-postgres --tail=50
-"
+# Проверка через Yandex Cloud Console
+# https://console.cloud.yandex.ru/folders/b1g8dn4l2a7t5r1g7i1k/managed-postgresql/cluster/
 ```
 
-### Перезапуск PostgreSQL
+### Интерактивная работа
+
+Подключись напрямую через SSH:
 
 ```bash
-yc compute ssh --name n8n-server --command "
-cd /opt/n8n && docker compose restart postgres
-"
+yc compute ssh --name n8n-server
+
+# Затем на VM:
+PGPASSWORD='6YURjrx7UP5VarHZ8VJSM7pCGD2khVPT' \
+psql -h rc1b-fu6im376hu9oc1lb.mdb.yandexcloud.net -p 6432 -U n8n -d n8n
 ```
-
-### Подключение для отладки
-
-Если нужна интерактивная работа, используй **Serial Console**:
-
-1. Открой https://console.cloud.yandex.ru/
-2. Compute Cloud → n8n-server → **Serial Console**
-3. Залогинься как `ubuntu`
-4. Выполни команды напрямую
 
 ---
 
@@ -377,10 +346,12 @@ SELECT * FROM bot_logs WHERE metadata->>'user_id' = '123';
 
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/)
 - [n8n PostgreSQL Node](https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.postgres/)
-- [Docker PostgreSQL](https://hub.docker.com/_/postgres)
+- [Yandex Managed PostgreSQL](https://cloud.yandex.ru/docs/managed-postgresql/)
+- [Yandex Cloud CLI](https://cloud.yandex.ru/docs/cli/)
 
 ---
 
 **Создано:** 2026-02-01  
+**Обновлено:** 2026-02-06 (убраны упоминания Docker, добавлена документация по Managed PostgreSQL)  
 **Автор:** AI Agent  
-**Статус:** ✅ Готово к использованию
+**Статус:** ✅ Готово к использованию с Managed PostgreSQL

@@ -1,0 +1,598 @@
+{
+    "nodes": [
+      {
+        "parameters": {
+          "updates": [
+            "message"
+          ],
+          "additionalFields": {}
+        },
+        "id": "ee4fcf2f-e6ed-47cb-8eeb-74f00057fecf",
+        "name": "Telegram Trigger",
+        "type": "n8n-nodes-base.telegramTrigger",
+        "typeVersion": 1.1,
+        "position": [
+          11792,
+          7712
+        ],
+        "webhookId": "fitbot-telegram-trigger",
+        "credentials": {
+          "telegramApi": {
+            "id": "wKVWnRtsrAhWh9au",
+            "name": "FitBot"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const msg = $input.first().json.message;\nconst userId = msg.from.id;\nconst chatId = msg.chat.id;\nconst userMessage = msg.text || '';\nconst userName = msg.from.first_name || msg.from.username || 'User';\nconst userMessageType = msg.entities && msg.entities.length > 0 ? msg.entities[0].type : '';\n\nreturn [{\n  json: {\n    userId,\n    chatId,\n    userMessage,\n    userName,\n    userMessageType,\n    messageId: msg.message_id\n  }\n}];"
+        },
+        "id": "f972514f-65a1-4f7c-8fb6-915e88f4c827",
+        "name": "Init Data",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          12016,
+          7712
+        ],
+        "alwaysOutputData": true,
+        "onError": "continueErrorOutput"
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "INSERT INTO user_locks (user_id, is_processing, locked_at, last_message)\nVALUES ({{ $('Init Data').item.json.userId }}, true, NOW(), '{{ $('Init Data').item.json.userMessage }}')\nON CONFLICT (user_id)\nDO UPDATE SET\n  is_processing = CASE\n    WHEN user_locks.is_processing = false OR user_locks.locked_at < NOW() - INTERVAL '5 minutes' THEN true\n    ELSE user_locks.is_processing\n  END,\n  locked_at = CASE\n    WHEN user_locks.is_processing = false OR user_locks.locked_at < NOW() - INTERVAL '5 minutes' THEN NOW()\n    ELSE user_locks.locked_at\n  END,\n  last_message = CASE\n    WHEN user_locks.is_processing = false OR user_locks.locked_at < NOW() - INTERVAL '5 minutes' THEN '{{ $('Init Data').item.json.userMessage }}'\n    ELSE user_locks.last_message\n  END\nRETURNING\n  user_id,\n  is_processing,\n  EXTRACT(EPOCH FROM (NOW() - locked_at)) > 1 as was_locked;",
+          "options": {}
+        },
+        "id": "3b65b907-b3e4-47f2-a423-40f5dc1629e3",
+        "name": "Try Acquire Lock",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.4,
+        "position": [
+          12240,
+          7712
+        ],
+        "alwaysOutputData": true,
+        "credentials": {
+          "postgres": {
+            "id": "m8I7qpcLB2JzbKQ9",
+            "name": "Postgres account"
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const lockResult = $input.first().json;\nconst initData = $('Init Data').first().json;\n\nreturn [{\n  json: {\n    ...initData,\n    isLocked: lockResult.was_locked === true,\n    lockInfo: lockResult\n  }\n}];"
+        },
+        "id": "0b4cc16e-3166-474b-aaa1-2d8cf6bf2089",
+        "name": "Format Lock Result",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          12448,
+          7712
+        ],
+        "alwaysOutputData": true
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "lock-check",
+                "leftValue": "={{ $json.isLocked }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "looseTypeValidation": "={{ false }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          12672,
+          7712
+        ],
+        "id": "3e4130c6-2206-493c-a0ae-2eace9fadd67",
+        "name": "If User Locked",
+        "alwaysOutputData": false
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $('Init Data').item.json.chatId }}",
+          "text": "⏳ Отвечаю на предыдущее сообщение, подожди немного...",
+          "additionalFields": {}
+        },
+        "id": "ba267aab-c4b9-480e-9e33-4e837009db27",
+        "name": "Send Busy Message",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.1,
+        "position": [
+          12896,
+          7504
+        ],
+        "webhookId": "4bf59d76-c7d1-46a4-a0ad-28668c2e8ca2",
+        "credentials": {
+          "telegramApi": {
+            "id": "wKVWnRtsrAhWh9au",
+            "name": "FitBot"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "sendChatAction",
+          "chatId": "={{ $('Init Data').item.json.chatId }}"
+        },
+        "id": "13c68384-fe8b-4bd5-810f-1c83a4fd9eab",
+        "name": "Show Typing",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.1,
+        "position": [
+          12896,
+          7808
+        ],
+        "webhookId": "60c47797-4c61-4291-8fb2-7df7879e8033",
+        "credentials": {
+          "telegramApi": {
+            "id": "wKVWnRtsrAhWh9au",
+            "name": "FitBot"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ $('Init Data').item.json.userMessage }}",
+          "options": {
+            "systemMessage": "=You are FitBot, an expert nutrition consultant. Always reply in Russian.\n\nCurrent user: ID={{ $('Init Data').item.json.userId }}, name={{ $('Init Data').item.json.userName }}\n\n== TOOL CALLS (MANDATORY) ==\n1. On start: CALL get_client_profile (user_id={{ $('Init Data').item.json.userId }})\n2. On ANY personal data from user: CALL update_client_profile BEFORE replying\n3. On meal plan creation: CALL update_client_profile with meal_plan field\n\nPROFILE FIELDS: name, age, weight (kg), height (cm), target_weight (kg), gender (male/female), goal, preferences, activity_level, schedule, meal_plan.\n\n== 3 LAWS OF FAT LOSS ==\n\nПохудение = липолиз (расщепление жира). 3 фактора управляют этим процессом:\n\nLAW 1 — CALORIC DEFICIT (главный фактор, запускает липолиз)\n- BMR (Mifflin-St Jeor): Men = 10*W + 6.25*H - 5*A + 5; Women = ...  - 161\n- TDEE = BMR * activity (1.2 sedentary / 1.375 light / 1.55 moderate / 1.725 high / 1.9 extreme)\n- Target = TDEE * 0.85-0.90 (deficit 10-15%, NEVER >20%)\n- Excessive deficit triggers adaptive thermogenesis, muscle loss, metabolic slowdown — counterproductive.\n\nLAW 2 — INSULIN CONTROL (второстепенный фактор, облегчает липолиз)\nHigh insulin suppresses lipolysis. Low insulin allows it.\nHow to keep insulin low:\n- Reduce glycemic LOAD (carb quantity * GI), not just GI alone\n- Low-GI carbs only: buckwheat, brown rice, quinoa, legumes, oats (long-cook), vegetables, berries\n- Exclude: sugar, white bread, white rice, pastries, sweet drinks, juice\n- Don't graze — allow insulin to return to baseline between meals\n- Front-load carbs to morning/lunch (AM insulin sensitivity is higher)\n- Dinner = protein + vegetables + healthy fats, minimal carbs\nCRITICAL: Caloric deficit causes fat loss even with imperfect insulin control. Insulin optimization ENHANCES the process but does NOT override thermodynamics. Never tell user they can't lose fat because of insulin alone.\n\nLAW 3 — METABOLIC RATE (скорость липолиза)\nHigher metabolism = faster fat loss at same deficit. By importance:\n1. Strength training + progressive overload (most important long-term factor!)\n2. High protein: 1.6-2.4 g/kg body weight (high TEF ~25-30%, preserves muscle)\n3. Daily steps: 8,000-12,000/day + any exercise\n4. Sleep 7-9 hours (poor sleep: TDEE -5-10%, ghrelin up, cortisol up)\n5. Water: 30-35 ml/kg/day\nDestroyers: alcohol, chronic sleep deprivation, excessive caloric deficit\n\n== MACRONUTRIENT TARGETS ==\n- Protein: 1.6-2.4 g/kg (higher end during deficit, usually ~30% of calories)\n- Fat: ~30% of calories (olive oil, avocado, nuts, fatty fish, eggs)\n- Carbs: remaining ~40%, ONLY low-GI, concentrated in first half of day\n- Fiber: 25-35 g/day from vegetables and berries\n- No liquid calories (juice, soda, sweetened drinks)\n- Last meal: 2-3 hours before sleep\n\n== MEAL PLAN ALGORITHM ==\n\n1. CALCULATE targets (show all math to user):\n   BMR -> TDEE -> Target kcal -> Protein(g) / Fat(g) / Carbs(g)\n\n2. ASK user: meal preferences, schedule, preferred number of meals\n   (3-5 meals is fine — meal frequency is NOT critical, total daily intake matters most)\n\n3. DESIGN meals:\n   - Distribute calories/macros across user's preferred meal structure\n   - Space meals 3-4 hours apart\n   - Carbs concentrated in morning/lunch, dinner = protein + vegetables\n   - Use ONLY foods user is comfortable with\n\n4. VERIFY totals: sum must be within ±50 kcal and ±10g per macro of targets. Adjust portions if off.\n\n5. PRESENT to user:\n   - Brief explanation of the 3 Laws (why this plan works)\n   - Each meal: time, foods with grams, calories, macros (Б/Ж/У)\n   - Daily totals: \"Итого: [kcal] ккал, Б[p]г, Ж[f]г, У[c]г\"\n   - Water and timing recommendations\n   - NEVER say \"примерно\" — give exact calculated values\n\n6. SAVE: call update_client_profile with meal_plan\n\n== ONGOING SUPPORT ==\n- Recommend strength training + daily steps (Law 3) as primary metabolic boosters\n- Adjust plan every 2-4 weeks based on results\n- If weight stalls >2 weeks at correct deficit: check sleep, stress, steps, adherence\n- Focus on what user CAN eat, not restrictions\n\n== RESPONSE FORMAT ==\n- Plain text only, no Markdown (no ** __ ``` symbols). Dashes for lists.\n- Short messages (<500 chars) for conversation. Longer for meal plans and explanations.\n- /start = greet and onboarding (collect: name, age, gender, weight, height, target_weight, activity_level, schedule, preferences)\n- Simple friendly language with everyday analogies. User is not a scientist.\n",
+            "maxIterations": 10,
+            "returnIntermediateSteps": true
+          }
+        },
+        "id": "3f468385-19db-41d5-8cca-5a48f031fccc",
+        "name": "AI Agent",
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 1.7,
+        "position": [
+          13200,
+          7808
+        ],
+        "onError": "continueErrorOutput"
+      },
+      {
+        "parameters": {
+          "model": {
+            "__rl": true,
+            "value": "deepseek-chat",
+            "mode": "list",
+            "cachedResultName": "deepseek-chat"
+          },
+          "options": {
+            "maxTokens": 2048,
+            "temperature": 0.7
+          }
+        },
+        "id": "be1b8c64-acd3-4820-84de-5b908d8c952f",
+        "name": "DeepSeek Model",
+        "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+        "typeVersion": 1.2,
+        "position": [
+          13008,
+          8112
+        ],
+        "credentials": {
+          "openAiApi": {
+            "id": "5k28f03QSg3ZrOeh",
+            "name": "DeepSeekV3"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "sessionIdType": "customKey",
+          "sessionKey": "={{ String($('Init Data').item.json.userId) }}",
+          "contextWindowLength": 6
+        },
+        "id": "26d6abbf-ad43-4787-8945-0bea77bb4806",
+        "name": "Chat Memory",
+        "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+        "typeVersion": 1.3,
+        "position": [
+          13200,
+          8112
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "m8I7qpcLB2JzbKQ9",
+            "name": "Postgres account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "name": "get_client_profile",
+          "description": "=Get client profile from DB. Pass user_id={{ $('Init Data').item.json.userId }}. Call at the start of every conversation.",
+          "source": "parameter",
+          "workflowJson": "{\"meta\":{\"instanceId\":\"53814074f06b7b5c9f98d5e8e8070a4c29be85d0115b2eb5224f97008ecdcc35\"},\"nodes\":[{\"parameters\":{},\"type\":\"n8n-nodes-base.executeWorkflowTrigger\",\"typeVersion\":1,\"position\":[0,0],\"id\":\"e7f8a9b0-c1d2-3456-efab-567890123456\",\"name\":\"When Called By AI Agent\"},{\"parameters\":{\"jsCode\":\"const raw = $input.first().json;\\nlet userId = null;\\n\\n// Прямое чтение user_id\\nif (raw.user_id != null) {\\n  userId = parseInt(raw.user_id);\\n}\\n\\n// Fallback: ищем во вложенных данных (без опасного replace всех не-цифр)\\nif (!userId || isNaN(userId)) {\\n  for (const v of Object.values(raw)) {\\n    if (typeof v === 'string') {\\n      // JSON строка\\n      try {\\n        const p = JSON.parse(v);\\n        if (p && p.user_id) { userId = parseInt(p.user_id); break; }\\n      } catch(e) {}\\n      // key=value формат: \\\"user_id=135289042\\\"\\n      if (v.includes('user_id') && v.includes('=')) {\\n        const match = v.match(/user_id\\\\s*=\\\\s*(\\\\d+)/);\\n        if (match) { userId = parseInt(match[1]); break; }\\n      }\\n      // Просто число-строка (только если вся строка — одно число)\\n      const trimmed = v.trim();\\n      const n = parseInt(trimmed);\\n      if (!isNaN(n) && n > 10000 && String(n) === trimmed) { userId = n; break; }\\n    } else if (typeof v === 'object' && v !== null && v.user_id) {\\n      userId = parseInt(v.user_id); break;\\n    } else if (typeof v === 'number' && v > 10000) {\\n      userId = v; break;\\n    }\\n  }\\n}\\n\\nreturn [{ json: { user_id: userId || 0 } }];\"},\"type\":\"n8n-nodes-base.code\",\"typeVersion\":2,\"position\":[110,0],\"id\":\"norm-0001-get-profile\",\"name\":\"Normalize Input\",\"alwaysOutputData\":true},{\"parameters\":{\"operation\":\"executeQuery\",\"query\":\"SELECT user_id, name, age, weight, height, target_weight, gender, goal, preferences, activity_level, schedule, meal_plan, created_at, updated_at FROM user_profiles WHERE user_id = {{ $json.user_id }} LIMIT 1\",\"options\":{}},\"type\":\"n8n-nodes-base.postgres\",\"typeVersion\":2.4,\"position\":[330,0],\"id\":\"f8a9b0c1-d2e3-4567-fabc-678901234567\",\"name\":\"Query Profile\",\"alwaysOutputData\":true,\"credentials\":{\"postgres\":{\"id\":\"m8I7qpcLB2JzbKQ9\",\"name\":\"Postgres account\"}}},{\"parameters\":{\"jsCode\":\"const items = $input.all();\\n\\nif (!items || items.length === 0 || !items[0].json.user_id) {\\n  return [{ json: { response: 'Client profile not found in database. This is a new client — collect their data.' } }];\\n}\\n\\nconst p = items[0].json;\\nconst profile = {\\n  user_id: p.user_id,\\n  name: p.name || null,\\n  age: p.age || null,\\n  weight: p.weight ? parseFloat(p.weight) : null,\\n  height: p.height || null,\\n  target_weight: p.target_weight ? parseFloat(p.target_weight) : null,\\n  gender: p.gender || null,\\n  goal: p.goal || null,\\n  preferences: p.preferences || null,\\n  activity_level: p.activity_level || null,\\n  schedule: p.schedule || null,\\n  meal_plan: p.meal_plan || null,\\n  created_at: p.created_at,\\n  updated_at: p.updated_at\\n};\\n\\nreturn [{ json: { response: JSON.stringify(profile, null, 2) } }];\"},\"type\":\"n8n-nodes-base.code\",\"typeVersion\":2,\"position\":[550,0],\"id\":\"a9b0c1d2-e3f4-5678-abcd-789012345678\",\"name\":\"Format Profile Result\",\"alwaysOutputData\":true}],\"connections\":{\"When Called By AI Agent\":{\"main\":[[{\"node\":\"Normalize Input\",\"type\":\"main\",\"index\":0}]]},\"Normalize Input\":{\"main\":[[{\"node\":\"Query Profile\",\"type\":\"main\",\"index\":0}]]},\"Query Profile\":{\"main\":[[{\"node\":\"Format Profile Result\",\"type\":\"main\",\"index\":0}]]}}}"
+        },
+        "id": "42843791-ec93-4fab-9e93-04fb03efb5d8",
+        "name": "Tool Get Profile",
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2,
+        "position": [
+          13360,
+          8160
+        ]
+      },
+      {
+        "parameters": {
+          "name": "update_client_profile",
+          "description": "=Update client profile. You MUST pass user_id={{ $('Init Data').item.json.userId }}. Only pass changed fields: name, age, weight, height, target_weight, gender, goal, preferences, activity_level, schedule, meal_plan.",
+          "source": "parameter",
+          "workflowJson": "{\"meta\":{\"instanceId\":\"53814074f06b7b5c9f98d5e8e8070a4c29be85d0115b2eb5224f97008ecdcc35\"},\"nodes\":[{\"parameters\":{},\"type\":\"n8n-nodes-base.executeWorkflowTrigger\",\"typeVersion\":1,\"position\":[0,0],\"id\":\"b0c1d2e3-f4a5-6789-bcde-890123456789\",\"name\":\"When Called By AI Agent\"},{\"parameters\":{\"jsCode\":\"const raw = $input.first().json;\\nlet input = raw;\\n\\n// Нормализация: данные могут прийти как отдельные поля, JSON-строка, или key=value строка\\nif (raw.user_id == null) {\\n  const vals = Object.values(raw);\\n  for (const v of vals) {\\n    if (typeof v === 'string') {\\n      // Попытка распарсить как JSON\\n      try {\\n        const p = JSON.parse(v);\\n        if (p && p.user_id) { input = p; break; }\\n      } catch(e) {}\\n      // Попытка распарсить как key=value: \\\"user_id=123, name=Анатолий\\\"\\n      if (v.includes('user_id') && v.includes('=')) {\\n        const parsed = {};\\n        v.split(',').forEach(pair => {\\n          const idx = pair.indexOf('=');\\n          if (idx > 0) {\\n            parsed[pair.substring(0, idx).trim()] = pair.substring(idx + 1).trim();\\n          }\\n        });\\n        if (parsed.user_id) { input = parsed; break; }\\n      }\\n    } else if (typeof v === 'object' && v !== null && v.user_id) {\\n      input = v; break;\\n    }\\n  }\\n}\\n\\nlet userId = parseInt(input.user_id);\\nif (isNaN(userId) || userId <= 0) {\\n  return [{ json: { query: 'SELECT null as user_id', error: 'Error: user_id is required. Received: ' + JSON.stringify(raw).substring(0, 300) } }];\\n}\\n\\nfunction esc(val) {\\n  if (val === null || val === undefined) return null;\\n  return String(val).replace(/'/g, \\\"''\\\");\\n}\\n\\nconst fields = ['user_id'];\\nconst values = [userId];\\nconst updates = ['updated_at = NOW()'];\\n\\nif (input.name != null && String(input.name).trim() !== '') {\\n  fields.push('name');\\n  values.push(\\\"'\\\" + esc(input.name) + \\\"'\\\");\\n  updates.push('name = EXCLUDED.name');\\n}\\nif (input.age != null) {\\n  const age = parseInt(input.age);\\n  if (age >= 10 && age <= 120) {\\n    fields.push('age');\\n    values.push(age);\\n    updates.push('age = EXCLUDED.age');\\n  }\\n}\\nif (input.weight != null) {\\n  const w = parseFloat(input.weight);\\n  if (w >= 20 && w <= 500) {\\n    fields.push('weight');\\n    values.push(w);\\n    updates.push('weight = EXCLUDED.weight');\\n  }\\n}\\nif (input.height != null) {\\n  const h = parseInt(input.height);\\n  if (h >= 100 && h <= 300) {\\n    fields.push('height');\\n    values.push(h);\\n    updates.push('height = EXCLUDED.height');\\n  }\\n}\\nif (input.target_weight != null) {\\n  const tw = parseFloat(input.target_weight);\\n  if (tw >= 20 && tw <= 500) {\\n    fields.push('target_weight');\\n    values.push(tw);\\n    updates.push('target_weight = EXCLUDED.target_weight');\\n  }\\n}\\nif (input.gender != null && String(input.gender).trim() !== '') {\\n  fields.push('gender');\\n  values.push(\\\"'\\\" + esc(input.gender) + \\\"'\\\");\\n  updates.push('gender = EXCLUDED.gender');\\n}\\nif (input.goal != null && String(input.goal).trim() !== '') {\\n  fields.push('goal');\\n  values.push(\\\"'\\\" + esc(input.goal) + \\\"'\\\");\\n  updates.push('goal = EXCLUDED.goal');\\n}\\nif (input.preferences != null && String(input.preferences).trim() !== '') {\\n  fields.push('preferences');\\n  values.push(\\\"'\\\" + esc(input.preferences) + \\\"'\\\");\\n  updates.push('preferences = EXCLUDED.preferences');\\n}\\nif (input.activity_level != null && String(input.activity_level).trim() !== '') {\\n  fields.push('activity_level');\\n  values.push(\\\"'\\\" + esc(input.activity_level) + \\\"'\\\");\\n  updates.push('activity_level = EXCLUDED.activity_level');\\n}\\nif (input.schedule != null && String(input.schedule).trim() !== '') {\\n  fields.push('schedule');\\n  values.push(\\\"'\\\" + esc(input.schedule) + \\\"'\\\");\\n  updates.push('schedule = EXCLUDED.schedule');\\n}\\nif (input.meal_plan != null && String(input.meal_plan).trim() !== '') {\\n  fields.push('meal_plan');\\n  values.push(\\\"'\\\" + esc(input.meal_plan) + \\\"'\\\");\\n  updates.push('meal_plan = EXCLUDED.meal_plan');\\n}\\n\\nconst query = `INSERT INTO user_profiles (${fields.join(', ')}, created_at, updated_at) VALUES (${values.join(', ')}, NOW(), NOW()) ON CONFLICT (user_id) DO UPDATE SET ${updates.join(', ')} RETURNING user_id, name, age, weight, height, target_weight, gender, goal, preferences, activity_level, schedule, meal_plan`;\\n\\nreturn [{ json: { query: query } }];\"},\"type\":\"n8n-nodes-base.code\",\"typeVersion\":2,\"position\":[220,0],\"id\":\"c1d2e3f4-a5b6-7890-cdef-901234567890\",\"name\":\"Build Upsert Query\"},{\"parameters\":{\"operation\":\"executeQuery\",\"query\":\"={{ $json.query }}\",\"options\":{}},\"type\":\"n8n-nodes-base.postgres\",\"typeVersion\":2.4,\"position\":[440,0],\"id\":\"d2e3f4a5-b6c7-8901-defa-012345678901\",\"name\":\"Execute Upsert\",\"alwaysOutputData\":true,\"credentials\":{\"postgres\":{\"id\":\"m8I7qpcLB2JzbKQ9\",\"name\":\"Postgres account\"}}},{\"parameters\":{\"jsCode\":\"const buildResult = $('Build Upsert Query').first().json;\\nif (buildResult.error) {\\n  return [{ json: { response: buildResult.error } }];\\n}\\nconst items = $input.all();\\nif (items.length > 0 && items[0].json.user_id) {\\n  const p = items[0].json;\\n  const parts = [];\\n  if (p.name) parts.push('Name: ' + p.name);\\n  if (p.age) parts.push('Age: ' + p.age);\\n  if (p.weight) parts.push('Weight: ' + p.weight + ' kg');\\n  if (p.height) parts.push('Height: ' + p.height + ' cm');\\n  if (p.target_weight) parts.push('Target weight: ' + p.target_weight + ' kg');\\n  if (p.gender) parts.push('Gender: ' + p.gender);\\n  if (p.goal) parts.push('Goal: ' + p.goal);\\n  if (p.preferences) parts.push('Preferences: ' + p.preferences);\\n  if (p.activity_level) parts.push('Activity: ' + p.activity_level);\\n  if (p.schedule) parts.push('Schedule: ' + p.schedule);\\n  if (p.meal_plan) parts.push('Meal plan updated');\\n  return [{ json: { response: 'Client profile updated successfully. Current data: ' + parts.join(', ') } }];\\n}\\nreturn [{ json: { response: 'Client profile updated successfully.' } }];\"},\"type\":\"n8n-nodes-base.code\",\"typeVersion\":2,\"position\":[660,0],\"id\":\"e3f4a5b6-c7d8-9012-efab-123456789012\",\"name\":\"Confirm Update\"}],\"connections\":{\"When Called By AI Agent\":{\"main\":[[{\"node\":\"Build Upsert Query\",\"type\":\"main\",\"index\":0}]]},\"Build Upsert Query\":{\"main\":[[{\"node\":\"Execute Upsert\",\"type\":\"main\",\"index\":0}]]},\"Execute Upsert\":{\"main\":[[{\"node\":\"Confirm Update\",\"type\":\"main\",\"index\":0}]]}}}"
+        },
+        "id": "7db8ec1d-dd97-4d44-9d7d-9dbf12001799",
+        "name": "Tool Update Profile",
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2,
+        "position": [
+          13584,
+          8224
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const agentOutput = $input.first().json;\nconst response = agentOutput.output || agentOutput.text || 'Извини, произошла ошибка. Попробуй ещё раз.';\n\n// Обрезаем до лимита Telegram (4096 символов)\nconst trimmed = response.length > 4096 ? response.substring(0, 4093) + '...' : response;\n\nreturn [{\n  json: {\n    response: trimmed,\n    userId: $('Init Data').first().json.userId,\n    chatId: $('Init Data').first().json.chatId,\n    messageId: $('Init Data').first().json.messageId\n  }\n}];"
+        },
+        "id": "978684fa-9fbc-404b-8217-877db08b28dc",
+        "name": "Format Response",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          13504,
+          7808
+        ],
+        "onError": "continueErrorOutput"
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $json.chatId }}",
+          "text": "={{ $json.response }}",
+          "additionalFields": {
+            "reply_to_message_id": "={{ $json.messageId }}"
+          }
+        },
+        "id": "eaad2af9-291d-419a-8d85-fb5ea32d64d8",
+        "name": "Send AI Reply",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.1,
+        "position": [
+          13728,
+          7808
+        ],
+        "webhookId": "8457cd98-8f29-43f9-8a34-c38aa396e7e8",
+        "credentials": {
+          "telegramApi": {
+            "id": "wKVWnRtsrAhWh9au",
+            "name": "FitBot"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "UPDATE user_locks SET is_processing = false WHERE user_id = {{ $('Init Data').item.json.userId }}",
+          "options": {}
+        },
+        "id": "ce2e5acd-ed49-4df5-a009-44e0053d7465",
+        "name": "Release Lock",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.4,
+        "position": [
+          13936,
+          7808
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "m8I7qpcLB2JzbKQ9",
+            "name": "Postgres account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const error = $input.first().json;\n// Используем Format Lock Result, так как он содержит все данные из Init Data\nlet lockData;\ntry {\n  lockData = $('Format Lock Result').first().json;\n} catch (e) {\n  // Fallback на Init Data если Format Lock Result недоступен\n  lockData = $('Init Data').first().json;\n}\n\nreturn [{\n  json: {\n    chatId: lockData.chatId || error.chatId || 0,\n    userId: lockData.userId || error.userId || 0,\n    messageId: lockData.messageId || error.messageId,\n    errorMessage: '😔 Упс, у меня что-то сломалось...\\n\\nПопробуй написать ещё раз через минуту.\\n\\nЕсли проблема повторяется — напиши @pandanax',\n    errorDetails: JSON.stringify(error, null, 2)\n  }\n}];"
+        },
+        "id": "08c90695-f166-4946-bee9-308ed63586a1",
+        "name": "Format Error",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          13616,
+          7968
+        ],
+        "alwaysOutputData": true
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $json.chatId }}",
+          "text": "={{ $json.errorMessage }}",
+          "additionalFields": {}
+        },
+        "id": "b71aa22b-5858-4429-8100-f2e7676d8c91",
+        "name": "Send Error Message",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.1,
+        "position": [
+          13824,
+          8064
+        ],
+        "webhookId": "8e4572a8-4a9f-4b7a-ab69-2f921b8d9aab",
+        "alwaysOutputData": true,
+        "credentials": {
+          "telegramApi": {
+            "id": "wKVWnRtsrAhWh9au",
+            "name": "FitBot"
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "UPDATE user_locks SET is_processing = false WHERE user_id = {{ $('Format Error').item.json.userId }} AND {{ $('Format Error').item.json.userId }} > 0",
+          "options": {}
+        },
+        "id": "383c9938-3082-45d1-af80-cbc3507642d1",
+        "name": "Release Lock Error",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.4,
+        "position": [
+          14112,
+          8064
+        ],
+        "alwaysOutputData": true,
+        "credentials": {
+          "postgres": {
+            "id": "m8I7qpcLB2JzbKQ9",
+            "name": "Postgres account"
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "=UPDATE n8n_chat_histories\nSET message = jsonb_set(\n  message,\n  '{data,content}',\n  to_jsonb(LEFT(message->'data'->>'content', 200))\n)\nWHERE session_id = '{{ $('Init Data').item.json.userId }}'\nAND message->>'type' = 'ai'\nAND LENGTH(message->'data'->>'content') > 200;",
+          "options": {}
+        },
+        "id": "46688f0a-0e27-44e3-a94a-56d62ecb87b4",
+        "name": "Trim Last AI Message",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2.4,
+        "position": [
+          13088,
+          7808
+        ],
+        "alwaysOutputData": true,
+        "credentials": {
+          "postgres": {
+            "id": "m8I7qpcLB2JzbKQ9",
+            "name": "Postgres account"
+          }
+        },
+        "onError": "continueRegularOutput"
+      }
+    ],
+    "connections": {
+      "Telegram Trigger": {
+        "main": [
+          [
+            {
+              "node": "Init Data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Init Data": {
+        "main": [
+          [
+            {
+              "node": "Try Acquire Lock",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Try Acquire Lock": {
+        "main": [
+          [
+            {
+              "node": "Format Lock Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format Lock Result": {
+        "main": [
+          [
+            {
+              "node": "If User Locked",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "If User Locked": {
+        "main": [
+          [
+            {
+              "node": "Send Busy Message",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Show Typing",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Show Typing": {
+        "main": [
+          [
+            {
+              "node": "Trim Last AI Message",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "AI Agent": {
+        "main": [
+          [
+            {
+              "node": "Format Response",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Format Error",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "DeepSeek Model": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Chat Memory": {
+        "ai_memory": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_memory",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tool Get Profile": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tool Update Profile": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format Response": {
+        "main": [
+          [
+            {
+              "node": "Send AI Reply",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Send AI Reply": {
+        "main": [
+          [
+            {
+              "node": "Release Lock",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format Error": {
+        "main": [
+          [
+            {
+              "node": "Send Error Message",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Send Error Message": {
+        "main": [
+          [
+            {
+              "node": "Release Lock Error",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Trim Last AI Message": {
+        "main": [
+          [
+            {
+              "node": "AI Agent",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "pinData": {},
+    "meta": {
+      "instanceId": "53814074f06b7b5c9f98d5e8e8070a4c29be85d0115b2eb5224f97008ecdcc35"
+    }
+  }

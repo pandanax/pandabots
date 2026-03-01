@@ -50,7 +50,7 @@
 
 **Исходящий трафик (Egress):**
 - ✅ Любой (ALL) - куда угодно
-  - Нужен для: обновлений, Docker Hub, PostgreSQL
+  - Нужен для: обновлений Docker образов, подключения к Managed PostgreSQL, внешних API
 
 ### 2. Security Group для PostgreSQL (`postgres-security-group`)
 
@@ -128,7 +128,7 @@ nc -zv c-xxxxxxxxx.rw.mdb.yandexcloud.net 6432
 
 ```bash
 # Проверка логов n8n
-docker logs n8n | grep -i "database\|postgres"
+docker logs n8n | grep -i "database\|connect"
 
 # Должно быть:
 # Successfully connected to database
